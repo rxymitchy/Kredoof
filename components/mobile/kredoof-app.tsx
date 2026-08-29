@@ -160,17 +160,17 @@ export function KredoofApp({
 
   return (
     <MainScreen
-        tab={tab}
-        onTab={setTab}
-        decision={decision}
-        financial={financial}
-        txs={txs}
-        agentStage={agentStage}
-        agentLog={agentLog}
-        onRunAgent={runAgent}
-        onDownload={downloadReport}
-        onPrint={() => window.print()}
-        reportId={reportId}
-      />
+      tab={tab}
+      onTab={setTab}
+      decision={decision}
+      financial={financial}
+      txs={txs}
+      agentStage={agentStage}
+      agentLog={agentLog}
+      onRunAgent={runAgent}
+      onDownload={downloadReport}
+      onPrint={() => window.print()}
+      reportId={reportId}
+    />
   );
 }
