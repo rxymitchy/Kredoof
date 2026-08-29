@@ -40,7 +40,13 @@ Transactions in the UI are labeled as **USDC transfer** / **USDT transfer** (has
 - wagmi · viem · RainbowKit (Avalanche)
 - Recharts is installed for later activity charts
 
-Node.js 20+ and npm are enough.
+Node.js **20+** and **npm** are enough. There is **no** `requirements.txt` (that’s for Python). Install everything with:
+
+```bash
+npm install
+```
+
+That reads `package.json` and `package-lock.json` (the lockfile — commit it so everyone gets the same versions).
 
 ---
 
