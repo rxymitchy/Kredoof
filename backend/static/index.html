@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Credora — Underwriting Engine Demo</title>
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #121826; --panel2: #1a2234; --border: #232e45;
+    --text: #e6ecf7; --muted: #8b98b3; --accent: #4f8cff; --good: #34d399;
+    --warn: #fbbf24; --bad: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 20px; letter-spacing: 2px; }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--muted); font-size: 13px; }
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; padding: 20px 28px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 12px; }
+  .wallet {
+    padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 10px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .wallet:hover { border-color: var(--accent); }
+  .wallet.active { border-color: var(--accent); background: var(--panel2); }
+  .wallet .name { font-size: 14px; font-weight: 600; }
+  .wallet .meta { font-size: 12px; color: var(--muted); margin-top: 4px; font-family: ui-monospace, monospace; }
+  .engine-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .engine-toggle button {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--muted); cursor: pointer; font-size: 12px;
+  }
+  .engine-toggle button.active { border-color: var(--accent); color: var(--text); background: var(--panel2); }
+  .decision-grid { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 700px) { .decision-grid { grid-template-columns: 1fr; } }
+  .gauge { text-align: center; padding: 10px 0; }
+  .gauge .score { font-size: 56px; font-weight: 800; line-height: 1; }
+  .gauge .range { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .band { display: inline-block; margin-top: 10px; padding: 5px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  .band.Low { background: rgba(52,211,153,.15); color: var(--good); }
+  .band.Medium-Low { background: rgba(52,211,153,.12); color: #86efac; }
+  .band.Medium { background: rgba(251,191,36,.15); color: var(--warn); }
+  .band.Medium-High { background: rgba(251,146,60,.15); color: #fb923c; }
+  .band.High { background: rgba(248,113,113,.15); color: var(--bad); }
+  .kv { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--muted); }
+  .kv .v { font-weight: 600; }
+  .eligible { color: var(--good); } .ineligible { color: var(--bad); }
+  .reason { display: grid; grid-template-columns: 1fr 90px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .reason:last-child { border-bottom: none; }
+  .reason .desc { font-size: 13px; }
+  .reason .val { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
+  .bar-wrap { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; position: relative; }
+  .bar { height: 100%; border-radius: 4px; }
+  .bar.pos { background: var(--good); } .bar.neg { background: var(--bad); }
+  .impact-label { font-size: 11px; text-align: right; font-family: ui-monospace, monospace; }
+  .impact-label.pos { color: var(--good); } .impact-label.neg { color: var(--bad); }
+  .flags { margin-top: 10px; }
+  .flag { background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.35); color: var(--bad); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 6px; }
+  .evidence { font-size: 12px; color: var(--muted); }
+  .evidence code { display: block; font-family: ui-monospace, monospace; font-size: 11px; color: #9db4dd; overflow: hidden; text-overflow: ellipsis; padding: 2px 0; }
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .loading { color: var(--muted); padding: 40px; text-align: center; }
+  .err { color: var(--bad); padding: 20px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>CRED<span>ORA</span></h1>
+  <p>Agentic credit underwriting for the on-chain economy — ML engine demo</p>
+  <p style="margin-left:auto"><a href="/docs" target="_blank">API docs</a> · <a href="/api/model-card" target="_blank">Model card</a></p>
+</header>
+
+<div class="layout">
+  <div class="stack">
+    <div class="panel">
+      <h2>Scoring engine</h2>
+      <div class="engine-toggle">
+        <button id="btn-ml" class="active">ML scorecard</button>
+        <button id="btn-heuristic">Heuristic (cold-start)</button>
+      </div>
+      <p class="muted">The heuristic scorecard is what ships before real loan outcomes exist. The ML scorecard is a logistic regression trained on the labelled (synthetic) population.</p>
+    </div>
+    <div class="panel">
+      <h2>Demo wallets</h2>
+      <div id="wallets" class="loading">Loading wallets…</div>
+    </div>
+  </div>
+
+  <div class="stack" id="result">
+    <div class="panel loading">Select a wallet to run underwriting.</div>
+  </div>
+</div>
+
+<script>
+let engine = "ml";
+let currentWallet = null;
+
+const fmtKES = n => "KSh " + Number(n).toLocaleString("en-KE");
+const short = h => h ? h.slice(0, 14) + "…" + h.slice(-6) : "";
+
+async function loadWallets() {
+  const res = await fetch("/api/demo-wallets");
+  const wallets = await res.json();
+  const el = document.getElementById("wallets");
+  el.classList.remove("loading");
+  el.innerHTML = "";
+  wallets.forEach(w => {
+    const d = document.createElement("div");
+    d.className = "wallet";
+    d.dataset.id = w.wallet_id;
+    d.innerHTML = `<div class="name">${w.display_name}</div>
+      <div class="meta">${short(w.wallet_id)} · ${w.transaction_count} txs</div>`;
+    d.onclick = () => { currentWallet = w.wallet_id; selectWallet(d); score(); };
+    el.appendChild(d);
+  });
+  if (wallets.length) { currentWallet = wallets[0].wallet_id; selectWallet(el.firstChild); score(); }
+}
+
+function selectWallet(node) {
+  document.querySelectorAll(".wallet").forEach(w => w.classList.remove("active"));
+  node.classList.add("active");
+}
+
+document.getElementById("btn-ml").onclick = () => setEngine("ml");
+document.getElementById("btn-heuristic").onclick = () => setEngine("heuristic");
+function setEngine(e) {
+  engine = e;
+  document.getElementById("btn-ml").classList.toggle("active", e === "ml");
+  document.getElementById("btn-heuristic").classList.toggle("active", e === "heuristic");
+  if (currentWallet) score();
+}
+
+async function score() {
+  const box = document.getElementById("result");
+  box.innerHTML = `<div class="panel loading">Running underwriting…</div>`;
+  try {
+    const res = await fetch(`/api/score/${currentWallet}?engine=${engine}`);
+    if (!res.ok) throw new Error(await res.text());
+    render(await res.json());
+  } catch (e) {
+    box.innerHTML = `<div class="panel err">Failed to score wallet: ${e.message}</div>`;
+  }
+}
+
+function render(r) {
+  const d = r.decision;
+  const maxImpact = Math.max(...r.reasons.map(x => Math.abs(x.impact)), 0.001);
+  const scoreColor = d.credit_score >= 700 ? "var(--good)" : d.credit_score >= 600 ? "var(--warn)" : "var(--bad)";
+
+  const reasonsHtml = r.reasons.map(x => {
+    const pos = x.impact >= 0;
+    const w = Math.round(Math.abs(x.impact) / maxImpact * 100);
+    return `<div class="reason">
+      <div>
+        <div class="desc">${x.reason || x.description}</div>
+        <div class="val">${x.feature} = ${x.value}</div>
+      </div>
+      <div>
+        <div class="impact-label ${pos ? "pos" : "neg"}">${pos ? "+" : ""}${x.impact}</div>
+        <div class="bar-wrap"><div class="bar ${pos ? "pos" : "neg"}" style="width:${w}%"></div></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const flagsHtml = d.policy_flags.length
+    ? `<div class="flags">${d.policy_flags.map(f => `<div class="flag">⚠ ${f}</div>`).join("")}</div>` : "";
+
+  document.getElementById("result").innerHTML = `
+    <div class="panel">
+      <h2>Credit decision — ${r.engine === "ml" ? "ML scorecard" : "heuristic scorecard"}</h2>
+      <div class="decision-grid">
+        <div class="gauge">
+          <div class="score" style="color:${scoreColor}">${d.credit_score}</div>
+          <div class="range">of 850</div>
+          <div class="band ${d.risk_band.replace(" ", "-")}">${d.risk_band} risk</div>
+        </div>
+        <div>
+          <div class="kv"><span class="k">Eligibility</span>
+            <span class="v ${d.eligible ? "eligible" : "ineligible"}">${d.eligible ? "Eligible" : "Not eligible"}</span></div>
+          <div class="kv"><span class="k">Credit limit</span>
+            <span class="v">${d.eligible ? fmtKES(d.eligible_amount_kes) : "—"}</span></div>
+          <div class="kv"><span class="k">Limit basis</span><span class="v">${d.policy.limit_basis}</span></div>
+          ${d.probability_of_default !== null ? `<div class="kv"><span class="k">Probability of default</span>
+            <span class="v">${(d.probability_of_default * 100).toFixed(1)}%</span></div>` : ""}
+          <div class="kv"><span class="k">Model</span><span class="v">${r.model_version}</span></div>
+          ${flagsHtml}
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Why — top scoring factors</h2>
+      ${reasonsHtml}
+    </div>
+
+    <div class="panel">
+      <h2>On-chain evidence</h2>
+      <div class="evidence">
+        <div class="kv"><span class="k">Verified transactions</span><span class="v">${r.evidence.transaction_count}</span></div>
+        <div class="kv"><span class="k">Activity window</span><span class="v">${(r.evidence.first_activity || "").slice(0,10)} → ${(r.evidence.last_activity || "").slice(0,10)}</span></div>
+        <p style="margin:10px 0 6px">Largest verified inflows (traceable tx hashes):</p>
+        ${r.evidence.sample_tx_hashes.map(h => `<code>${h}</code>`).join("")}
+        <p style="margin-top:10px">${r.evidence.note}</p>
+      </div>
+    </div>`;
+}
+
+loadWallets();
+</script>
+</body>
+</html>
