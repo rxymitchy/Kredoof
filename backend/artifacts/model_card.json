@@ -1,0 +1,49 @@
+{
+  "model_type": "logistic_regression_scorecard",
+  "features": [
+    "monthly_inflow_median",
+    "inflow_cv",
+    "inflow_growth",
+    "net_cashflow_ratio",
+    "active_months_ratio",
+    "wallet_age_months",
+    "tx_per_month",
+    "counterparty_count",
+    "counterparty_hhi",
+    "repayment_count",
+    "on_time_repayment_rate",
+    "has_repayment_history",
+    "circular_flow_ratio",
+    "max_inflow_share"
+  ],
+  "coefficients": {
+    "monthly_inflow_median": -0.2606,
+    "inflow_cv": 0.0119,
+    "inflow_growth": 0.0976,
+    "net_cashflow_ratio": -0.0201,
+    "active_months_ratio": -0.161,
+    "wallet_age_months": -0.8528,
+    "tx_per_month": 0.0021,
+    "counterparty_count": -0.9352,
+    "counterparty_hhi": -0.1037,
+    "repayment_count": 0.3989,
+    "on_time_repayment_rate": -0.1578,
+    "has_repayment_history": 0.7039,
+    "circular_flow_ratio": 0.0539,
+    "max_inflow_share": 0.0555
+  },
+  "metrics": {
+    "auc_train": 0.7856,
+    "auc_test": 0.7905,
+    "ks_test": 0.5054,
+    "n_train": 900,
+    "n_test": 300,
+    "default_rate": 0.2183
+  },
+  "score_scaling": {
+    "base_score": 650.0,
+    "base_odds": 9.0,
+    "pdo": 63.0
+  },
+  "training_data": "synthetic archetype population (replace with real loan outcomes)"
+}
