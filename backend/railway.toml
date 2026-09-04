@@ -1,0 +1,7 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "uvicorn credora.api:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/api/demo-wallets"
+restartPolicyType = "ON_FAILURE"

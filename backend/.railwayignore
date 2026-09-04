@@ -1,0 +1,3 @@
+# Ignore Next.js files when Nixpacks/Railway builds from this folder
+node_modules
+.next
