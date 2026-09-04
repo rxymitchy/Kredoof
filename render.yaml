@@ -1,0 +1,12 @@
+# Kredoof on Render: Python API + (optional) static isn't used — frontend is Vercel.
+# Dashboard: https://dashboard.render.com → New → Blueprint → this repo.
+
+services:
+  - type: web
+    name: kredoof-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn credora.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/demo-wallets
