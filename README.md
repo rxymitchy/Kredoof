@@ -8,7 +8,7 @@ It is **not** a trading app, a wallet, or a score widget with no evidence. The t
 
 This repository is a **hackathon demo**: polished UI, Avalanche wallet connection, and a **mock** ledger/underwriting layer you can swap for live data later.
 
-Live repo: [github.com/rxymitchy/Kredoof](https://github.com/rxymitchy/Kredoof)
+Live website: https://kredoof.vercel.app/
 
 ---
 
