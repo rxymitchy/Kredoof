@@ -7,7 +7,7 @@ buried inside model weights.
 
 from __future__ import annotations
 
-USD_TO_KES = 129.0  # peg for the prototype; make this a live rate in prod
+USD_TO_KES = 129.4  # same peg the Kredoof frontend uses (KES_PER_USDC)
 
 RISK_BANDS = [
     (750, "Low", 4.0),

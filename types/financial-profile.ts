@@ -1,3 +1,5 @@
+import type { DataSource } from "./source";
+
 export interface MonthlyVolumePoint {
   month: string;
   volumeKsh: number;
@@ -19,5 +21,5 @@ export interface FinancialProfile {
   walletAgeMonths: number;
   monthlyVolume: MonthlyVolumePoint[];
   inflowsVsOutflows: FlowPoint[];
-  source: "mock";
+  source: DataSource;
 }

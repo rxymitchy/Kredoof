@@ -1,11 +1,13 @@
-"""FastAPI surface for the Credora underwriting engine.
+"""FastAPI surface for the Kredoof underwriting engine.
 
 Endpoints
-- GET  /                  demo dashboard
-- GET  /api/demo-wallets  list synthetic demo wallets
-- POST /api/score         score a wallet from raw transactions
-- GET  /api/score/{id}    score one of the demo wallets by id
-- GET  /api/model-card    training metrics + coefficients of the live model
+- GET  /                       demo dashboard
+- GET  /api/health             liveness
+- GET  /api/kredoof/profile    frontend-shaped underwriting payload
+- GET  /api/demo-wallets       list synthetic demo wallets
+- POST /api/score              score a wallet from raw transactions
+- GET  /api/score/{id}         score one of the demo wallets by id
+- GET  /api/model-card         training metrics + coefficients of the live model
 """
 
 from __future__ import annotations
@@ -23,16 +25,21 @@ from . import model as model_mod
 from . import synth
 from .decision import make_decision
 from .features import FEATURE_DESCRIPTIONS, compute_features
+from .profile import JUA_KALI, build_profile
 from .scorecard import score_heuristic
 
-app = FastAPI(title="Credora Underwriting Engine", version="0.1.0")
+app = FastAPI(title="Kredoof Underwriting Engine", version="0.1.0")
 
-# Open CORS so the React frontend (running on its own dev server/port) can
-# call this API during development. Restrict to the real frontend origin in
-# production.
+# Browser calls from local Next.js and the live Vercel app.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://kredoof.vercel.app",
+        "https://kredoof-rxymitchys-projects.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -42,14 +49,22 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 _state: dict = {}
 
 
-@app.on_event("startup")
-def startup() -> None:
+def _ensure_ready() -> None:
+    if "pipe" in _state:
+        return
     if not model_mod.MODEL_PATH.exists():
         from .train import main as train_main
         train_main()
     _state["pipe"] = model_mod.load_model()
     _state["card"] = model_mod.load_card()
-    _state["demo"] = {w.wallet_id: w for w in synth.generate_demo_wallets()}
+    wallets = synth.generate_demo_wallets()
+    _state["demo"] = {w.wallet_id: w for w in wallets}
+    _state["demo_by_archetype"] = {w.archetype: w for w in wallets}
+
+
+@app.on_event("startup")
+def startup() -> None:
+    _ensure_ready()
 
 
 class Transaction(BaseModel):
@@ -69,6 +84,7 @@ class ScoreRequest(BaseModel):
 
 
 def _score_frame(wallet_id: str, tx: pd.DataFrame, engine: str) -> dict:
+    _ensure_ready()
     features = compute_features(tx)
 
     if engine == "heuristic":
@@ -106,8 +122,40 @@ def _score_frame(wallet_id: str, tx: pd.DataFrame, engine: str) -> dict:
     }
 
 
+def _kredoof_profile(wallet, *, brand: dict | None = None) -> dict:
+    payload = _score_frame(wallet.wallet_id, wallet.transactions, "ml")
+    return build_profile(wallet, payload, brand=brand)
+
+
+@app.get("/api/health")
+def health():
+    _ensure_ready()
+    return {"ok": True}
+
+
+@app.get("/api/kredoof/profile")
+def kredoof_profile():
+    """Frontend-shaped payload for the default demo (Jua Kali / steady merchant)."""
+    _ensure_ready()
+    wallet = _state["demo_by_archetype"].get("steady_merchant")
+    if wallet is None:
+        raise HTTPException(500, "Demo wallet missing")
+    return _kredoof_profile(wallet, brand=JUA_KALI)
+
+
+@app.get("/api/kredoof/profile/{wallet_id}")
+def kredoof_profile_wallet(wallet_id: str):
+    _ensure_ready()
+    wallet = _state["demo"].get(wallet_id)
+    if wallet is None:
+        raise HTTPException(404, "Unknown demo wallet")
+    brand = JUA_KALI if wallet.archetype == "steady_merchant" else None
+    return _kredoof_profile(wallet, brand=brand)
+
+
 @app.get("/api/demo-wallets")
 def demo_wallets():
+    _ensure_ready()
     out = []
     for w in _state["demo"].values():
         out.append({
@@ -140,6 +188,7 @@ def score(req: ScoreRequest):
 
 @app.get("/api/model-card")
 def model_card():
+    _ensure_ready()
     return _state["card"]
 
 
