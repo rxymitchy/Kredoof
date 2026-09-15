@@ -1,0 +1,18 @@
+{
+  "services": {
+    "web": {
+      "root": ".",
+      "framework": "fastapi",
+      "entrypoint": "app.py"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "web"
+      }
+    }
+  ]
+}

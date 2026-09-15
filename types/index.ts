@@ -1,3 +1,4 @@
+export type { DataSource } from "./source";
 export type { Applicant } from "./applicant";
 export type {
   ConnectedWallet,

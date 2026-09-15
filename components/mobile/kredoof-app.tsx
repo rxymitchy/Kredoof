@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
+import { type AuthMode } from "@/components/mobile/auth-form";
 import { AuthScreen } from "@/components/mobile/screens/auth-screen";
 import { BundlingScreen } from "@/components/mobile/screens/bundling-screen";
 import { ConnectScreen } from "@/components/mobile/screens/connect-screen";
 import { HowItWorksScreen } from "@/components/mobile/screens/how-it-works-screen";
-import { LandingScreen } from "@/components/mobile/screens/landing-screen";
 import {
   MainScreen,
   type AgentStage,
@@ -17,14 +19,10 @@ import { generateReportHtml, reportIdFor } from "@/lib/report-html";
 import { bandForScore } from "@/lib/loan-bands";
 import { mockApplicant, mockTransactions } from "@/data";
 import { mockCreditDecision, mockFinancialProfile } from "@/data";
+import type { EngineProfile } from "@/services/engine";
+import type { OnChainTransaction } from "@/types";
 
-export type AppStage =
-  | "landing"
-  | "how"
-  | "auth"
-  | "connect"
-  | "bundling"
-  | "main";
+export type AppStage = "how" | "auth" | "connect" | "bundling" | "main";
 
 const BUNDLE_ITEMS = [
   "Wallet connected",
@@ -36,35 +34,71 @@ const BUNDLE_ITEMS = [
 ];
 
 const AGENT_STEPS = [
-  "Pulling verified Avalanche transfers",
+  "Pulling verified Avalanche USDC/USDT transfers",
   "Confirming hashes, counterparties, and amounts",
-  "Scoring wallet age, volume, consistency, repayment, diversity, dispute rate",
-  "Checking mock risk indicators (not live fraud detection)",
+  "Scoring wallet age, volume, consistency, repayment, diversity",
+  "Applying policy overlays (wash-trading, thin file)",
   "Compiling an explainable credit decision",
 ];
 
 export function KredoofApp({
-  startAt = "landing",
+  startAt = "auth",
   initialTab = "portfolio",
+  initialAuthMode = "signup",
+  initialError = null,
+  resetToken = "",
 }: {
   startAt?: AppStage;
   initialTab?: MainTab;
+  initialAuthMode?: AuthMode;
+  initialError?: string | null;
+  resetToken?: string;
 }) {
+  const router = useRouter();
+  const { address } = useAccount();
   const [stage, setStage] = useState<AppStage>(startAt);
+  const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
   const [tab, setTab] = useState<MainTab>(initialTab);
   const [bundleDone, setBundleDone] = useState(0);
-  const [agentStage, setAgentStage] = useState<AgentStage>(
-    startAt === "main" ? "idle" : "idle"
-  );
+  const [liveMode, setLiveMode] = useState(false);
+  const [liveProfile, setLiveProfile] = useState<EngineProfile | null>(null);
+  const [liveTxs, setLiveTxs] = useState<OnChainTransaction[] | null>(null);
+  const [agentStage, setAgentStage] = useState<AgentStage>("idle");
   const [agentLog, setAgentLog] = useState<string[]>([]);
+  const [sessionReady, setSessionReady] = useState(startAt !== "auth");
 
-  const underwriting = useUnderwritingProfile();
-  const transactions = useTransactions();
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data: { signedIn?: boolean }) => {
+        if (cancelled) return;
+        if (
+          data.signedIn &&
+          (startAt === "auth" || startAt === "connect") &&
+          initialAuthMode !== "reset" &&
+          initialAuthMode !== "forgot"
+        ) {
+          setStage("connect");
+        }
+        setSessionReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setSessionReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [startAt, initialAuthMode]);
 
-  const decision = underwriting.decision ?? mockCreditDecision;
-  const financial = underwriting.financial ?? mockFinancialProfile;
-  const txs = transactions.data?.items ?? mockTransactions;
-  const applicant = underwriting.applicant ?? mockApplicant;
+  const needsProfile = stage === "main" || stage === "bundling";
+  const underwriting = useUnderwritingProfile(needsProfile);
+  const transactions = useTransactions(needsProfile);
+
+  const decision = liveProfile?.decision ?? underwriting.decision ?? mockCreditDecision;
+  const financial = liveProfile?.financial ?? underwriting.financial ?? mockFinancialProfile;
+  const txs = liveTxs ?? transactions.data?.items ?? mockTransactions;
+  const applicant = liveProfile?.applicant ?? underwriting.applicant ?? mockApplicant;
 
   const reportId = useMemo(
     () => reportIdFor(applicant, decision.score),
@@ -89,6 +123,30 @@ export function KredoofApp({
       timers.forEach((id) => window.clearTimeout(id));
     };
   }, [stage]);
+
+  useEffect(() => {
+    if (stage !== "bundling" || !liveMode || !address) return;
+    let cancelled = false;
+    fetch("/api/underwrite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setLiveTxs(data.items ?? []);
+          return;
+        }
+        setLiveProfile(data);
+        setLiveTxs(data.liveTransactions ?? data.transactions?.items ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, liveMode, address]);
 
   const runAgent = useCallback(() => {
     setAgentStage("thinking");
@@ -132,26 +190,56 @@ export function KredoofApp({
     URL.revokeObjectURL(url);
   };
 
-  if (stage === "landing") {
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    router.push("/");
+    router.refresh();
+  }
+
+  if (!sessionReady) {
+    return null;
+  }
+
+  if (stage === "how") {
     return (
-      <LandingScreen
-        onConnect={() => setStage("connect")}
-        onHowItWorks={() => setStage("how")}
-        onSignIn={() => setStage("auth")}
+      <HowItWorksScreen
+        onContinue={() => {
+          setAuthMode("signup");
+          setStage("auth");
+        }}
+        onBack={() => router.push("/")}
       />
     );
   }
 
-  if (stage === "how") {
-    return <HowItWorksScreen onContinue={() => setStage("connect")} />;
-  }
-
   if (stage === "auth") {
-    return <AuthScreen onContinue={() => setStage("connect")} />;
+    return (
+      <AuthScreen
+        initialMode={authMode}
+        initialError={initialError}
+        resetToken={resetToken}
+        onContinue={() => setStage("connect")}
+        onBack={() => router.push("/")}
+      />
+    );
   }
 
   if (stage === "connect") {
-    return <ConnectScreen onContinue={() => setStage("bundling")} />;
+    return (
+      <ConnectScreen
+        onContinue={() => {
+          setLiveMode(true);
+          setStage("bundling");
+        }}
+        onDemo={() => {
+          setLiveMode(false);
+          setStage("bundling");
+        }}
+        onSignOut={() => {
+          void signOut();
+        }}
+      />
+    );
   }
 
   if (stage === "bundling") {
@@ -165,12 +253,16 @@ export function KredoofApp({
       decision={decision}
       financial={financial}
       txs={txs}
+      applicant={applicant}
       agentStage={agentStage}
       agentLog={agentLog}
       onRunAgent={runAgent}
       onDownload={downloadReport}
       onPrint={() => window.print()}
       reportId={reportId}
+      onSignOut={() => {
+        void signOut();
+      }}
     />
   );
 }

@@ -1,6 +1,6 @@
 """Train the ML scorecard on the synthetic labelled population.
 
-Run:  python -m credora.train
+Run:  python -m kredoof.train
 """
 
 from __future__ import annotations

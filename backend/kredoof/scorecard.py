@@ -1,6 +1,6 @@
 """Phase-1 heuristic scorecard (expert rules, no training data required).
 
-This is what Credora should ship on day one, before any real repayment
+This is what Kredoof should ship on day one, before any real repayment
 outcomes exist. Every rule is a documented underwriting judgement, so the
 score is fully explainable and easy to defend to a lender or regulator.
 Once real loan outcomes accumulate, the ML scorecard (model.py) replaces the

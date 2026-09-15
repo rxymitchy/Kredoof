@@ -22,7 +22,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { mockApplicant } from "@/data";
 import {
   formatDayMonth,
   formatIsoDate,
@@ -34,13 +33,15 @@ import {
   usdcFromKes,
   explorerTxUrl,
 } from "@/lib/format";
+import { LoanPanel } from "@/components/mobile/loan-panel";
 import { bandForScore } from "@/lib/loan-bands";
+import { cn } from "@/lib/utils";
 import type {
+  Applicant,
   CreditDecision,
   FinancialProfile,
   OnChainTransaction,
 } from "@/types";
-import { cn } from "@/lib/utils";
 
 const TONE = {
   good: { bg: "#E4F5E6", fg: "#2F8F52" },
@@ -65,6 +66,8 @@ export function MainScreen({
   onDownload,
   onPrint,
   reportId,
+  applicant,
+  onSignOut,
 }: {
   tab: MainTab;
   onTab: (tab: MainTab) => void;
@@ -77,6 +80,8 @@ export function MainScreen({
   onDownload: () => void;
   onPrint: () => void;
   reportId: string;
+  applicant: Applicant;
+  onSignOut?: () => void;
 }) {
   const { address, connector } = useAccount();
   const connectors = useConnectors();
@@ -89,7 +94,7 @@ export function MainScreen({
 
   const displayAddress = address
     ? shortenAddress(address)
-    : shortenAddress(mockApplicant.walletAddress);
+    : shortenAddress(applicant.walletAddress);
   const band = bandForScore(decision.score);
   const tone = TONE[band.tone];
   const ceilingUsdc = usdcFromKes(band.ceilingKes);
@@ -116,13 +121,13 @@ export function MainScreen({
             </span>
             <span className="hidden h-4 w-px bg-hairline sm:block" />
             <div className="hidden items-center gap-2 sm:flex">
-              <Avatar initials={mockApplicant.initials} active size={32} />
+              <Avatar initials={applicant.initials} active size={32} />
               <div>
                 <div className="text-[11px] text-muted-foreground">
-                  {mockApplicant.name}
+                  {applicant.name}
                 </div>
                 <div className="font-heading text-sm font-bold leading-tight">
-                  {mockApplicant.owner}
+                  {applicant.owner}
                 </div>
               </div>
             </div>
@@ -164,6 +169,18 @@ export function MainScreen({
                   <span>{c.name}</span>
                 </button>
               ))}
+              {onSignOut ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSwitcher(false);
+                    onSignOut();
+                  }}
+                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
+                >
+                  Sign out
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -216,7 +233,7 @@ export function MainScreen({
                 {agentStage === "done" ? decision.score : "— · —"}
               </div>
               <div className="mt-2 text-sm text-[#215B36]/85">
-                {mockApplicant.sector} · Avalanche ·{" "}
+                {applicant.sector} · Avalanche ·{" "}
                 {financial.totalTransactions.toLocaleString("en-KE")} on-chain
                 entries
               </div>
@@ -261,7 +278,7 @@ export function MainScreen({
                 Transaction history
               </span>
               <span className="text-sm text-[#a9b0a2]">
-                {mockApplicant.network}
+                {applicant.network}
               </span>
             </div>
 
@@ -342,7 +359,7 @@ export function MainScreen({
               <p className="mt-6 text-sm leading-6 text-muted-foreground">
                 Ready to review{" "}
                 <strong className="text-foreground">
-                  {mockApplicant.name}
+                  {applicant.name}
                 </strong>
                 ’s bundled on-chain ledger and issue a verified decision?
               </p>
@@ -357,7 +374,7 @@ export function MainScreen({
                     className="mb-3 flex w-full items-center justify-between rounded-2xl border border-hairline bg-[#FAFBF9] px-4 py-4 text-left"
                   >
                     <span className="text-sm sm:text-base">
-                      Run underwriting for {mockApplicant.name}
+                      Run underwriting for {applicant.name}
                     </span>
                     <ChevronRight size={16} className="text-[#a9b0a2]" />
                   </button>
@@ -430,6 +447,10 @@ export function MainScreen({
                     View downloadable report
                     <ChevronRight size={16} />
                   </button>
+                  <LoanPanel
+                    eligible={decision.recommendedLimitKsh > 0}
+                    limitUsdc={usdcFromKes(decision.recommendedLimitKsh)}
+                  />
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">
                     Your credit profile isn’t static. This next-milestone
                     preview is product vision, not a live forecast: Prime · KES
@@ -475,7 +496,7 @@ export function MainScreen({
                         KREDOOF CREDIT REPORT
                       </div>
                       <div className="font-mono mt-1 text-[9.5px] text-[#C9A227]">
-                        {reportId} · {mockApplicant.location}
+                        {reportId} · {applicant.location}
                       </div>
                     </div>
                     <div className="font-heading -rotate-3 rounded-md border-[1.5px] border-[#C9A227] px-2 py-1 text-center text-[9px] font-extrabold tracking-wide text-[#C9A227]">
@@ -485,9 +506,9 @@ export function MainScreen({
                   <div className="bg-[#FEFEFC] px-[18px] py-4">
                     {(
                       [
-                        ["Applicant", mockApplicant.name],
-                        ["Sector", mockApplicant.sector],
-                        ["Location", mockApplicant.location],
+                        ["Applicant", applicant.name],
+                        ["Sector", applicant.sector],
+                        ["Location", applicant.location],
                         ["Wallet", displayAddress],
                         ["Network", "Avalanche"],
                         ["History", `${financial.walletAgeMonths} months`],

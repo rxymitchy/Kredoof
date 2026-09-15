@@ -13,11 +13,17 @@ const STEPS = [
   "It issues an explainable credit decision",
 ];
 
-export function HowItWorksScreen({ onContinue }: { onContinue: () => void }) {
+export function HowItWorksScreen({
+  onContinue,
+  onBack,
+}: {
+  onContinue: () => void;
+  onBack?: () => void;
+}) {
   return (
     <PhoneShell>
       <div className="max-w-3xl">
-        <h1 className="font-heading text-3xl font-extrabold sm:text-4xl">
+        <h1 className="font-heading text-3xl font-extrabold text-foreground sm:text-4xl">
           How it works
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
@@ -35,19 +41,28 @@ export function HowItWorksScreen({ onContinue }: { onContinue: () => void }) {
             key={step}
             className="flex items-center justify-between rounded-2xl border border-hairline bg-white px-5 py-4"
           >
-            <span className="text-sm sm:text-base">
-              <span className="mr-2 font-mono text-xs text-[#a9b0a2]">
+            <span className="text-sm text-foreground sm:text-base">
+              <span className="mr-2 font-mono text-xs text-muted-foreground">
                 {i + 1}
               </span>
               {step}
             </span>
-            <ChevronRight size={16} className="text-[#a9b0a2]" />
+            <ChevronRight size={16} className="text-muted-foreground" />
           </div>
         ))}
       </div>
       <PrimaryButton onClick={onContinue} className="mt-8 sm:w-auto sm:px-8">
-        Connect Wallet
+        Sign up
       </PrimaryButton>
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-4 block text-sm text-muted-foreground"
+        >
+          Back
+        </button>
+      ) : null}
     </PhoneShell>
   );
 }

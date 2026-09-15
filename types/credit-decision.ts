@@ -1,4 +1,5 @@
 import type { FactorRating, RiskLevel } from "./risk";
+import type { DataSource } from "./source";
 
 export type CreditStatus = "established" | "prime" | "building";
 
@@ -36,7 +37,7 @@ export interface CreditDecision {
   recommendedLimitLabel: string;
   rationale: DecisionRationale[];
   methodology: ScoreFactor[];
-  source: "mock";
+  source: DataSource;
 }
 
 export interface ContinuousUnderwritingVision {
@@ -60,7 +61,7 @@ export interface CreditReport {
   recommendedLimitLabel: string;
   basis: string;
   disclaimer: string;
-  source: "mock";
+  source: DataSource;
 }
 
 export interface PricingModel {

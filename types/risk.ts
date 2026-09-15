@@ -1,3 +1,5 @@
+import type { DataSource } from "./source";
+
 export type RiskLevel = "low" | "medium-low" | "medium" | "high";
 
 export type FactorRating = "excellent" | "strong" | "good" | "low" | "medium";
@@ -13,6 +15,6 @@ export interface RiskAnalysis {
   overallLabel: string;
   factors: RiskFactor[];
   /** Prototype uses mock analysis. Replace with the underwriting engine. */
-  source: "mock";
+  source: DataSource;
   disclaimer: string;
 }

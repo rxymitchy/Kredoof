@@ -1,4 +1,4 @@
-"""Credora ML underwriting engine.
+"""Kredoof ML underwriting engine.
 
 Turns raw on-chain transaction history into an explainable credit decision:
 

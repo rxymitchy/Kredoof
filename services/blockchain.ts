@@ -1,23 +1,41 @@
 import { mockApplicant, mockTransactions } from "@/data";
-import { explorerTxUrl } from "@/lib/format";
-import { shortenAddress } from "@/lib/format";
+import { explorerTxUrl, shortenAddress } from "@/lib/format";
+import { loadEngineProfile } from "@/services/engine";
 import type {
+  DataSource,
   OnChainTransaction,
   TransactionListResult,
   WalletSummary,
 } from "@/types";
 
-const delay = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
+let source: DataSource = "mock";
 
 /**
- * Blockchain access layer. Currently backed by mock Avalanche transfers.
- * Swap the implementations here (not in UI components) for live RPC/indexer data.
+ * Blockchain access layer. Uses the Kredoof API demo ledger when it is up;
+ * otherwise the static Jua Kali sample transfers.
  */
 export const blockchainService = {
-  source: "mock" as const,
+  get source(): DataSource {
+    return source;
+  },
 
   async getWalletSummary(address?: string): Promise<WalletSummary> {
-    await delay();
+    const live = await loadEngineProfile();
+    if (live) {
+      source = "engine";
+      if (address) {
+        const resolved = address as `0x${string}`;
+        return {
+          ...live.walletSummary,
+          wallet: {
+            ...live.walletSummary.wallet,
+            address: resolved,
+            displayAddress: shortenAddress(resolved),
+          },
+        };
+      }
+      return live.walletSummary;
+    }
     const resolved = (address ?? mockApplicant.walletAddress) as `0x${string}`;
     return {
       wallet: {
@@ -33,7 +51,11 @@ export const blockchainService = {
   },
 
   async getTransactions(): Promise<TransactionListResult> {
-    await delay();
+    const live = await loadEngineProfile();
+    if (live) {
+      source = "engine";
+      return live.transactions;
+    }
     return {
       items: mockTransactions,
       totalCount: 2430,
@@ -44,8 +66,8 @@ export const blockchainService = {
   async getTransactionById(
     id: string
   ): Promise<OnChainTransaction | undefined> {
-    await delay();
-    return mockTransactions.find((tx) => tx.id === id || tx.hash === id);
+    const list = await this.getTransactions();
+    return list.items.find((tx) => tx.id === id || tx.hash === id);
   },
 
   getExplorerUrl(hash: string): string {

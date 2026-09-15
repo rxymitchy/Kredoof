@@ -9,6 +9,7 @@ It is **not** a trading app, a wallet, or a score widget with no evidence. The t
 This repository is a **hackathon demo**: polished UI, Avalanche wallet connection, and a **mock** ledger/underwriting layer you can swap for live data later.
 
 Live website: https://kredoof.vercel.app/
+API: https://backend-sigma-silk-84.vercel.app
 
 ---
 
@@ -88,6 +89,7 @@ Copy `.env.example` to `.env.local`.
 | Variable | Required? | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | Optional | 32-character Reown / WalletConnect Cloud project ID. Enables WalletConnect / mobile QR. |
+| `NEXT_PUBLIC_API_URL` | Optional | Kredoof API origin (no trailing slash). Local: `http://127.0.0.1:8471`. If unset or down, the UI keeps the mock profile. |
 
 Without it, **MetaMask, Coinbase Wallet, and Rabby** still work via injected connectors. WalletConnect is **not** registered until the ID is a real 32-char hex string (not all zeros).
 
@@ -106,8 +108,8 @@ Never commit `.env.local`. `.env*` is gitignored except `.env.example`.
 1. **Landing** — Connect Wallet, See How It Works, or demo email (any values continue).
 2. **Connect** — Pick a wallet, or **Preview with sample Avalanche ledger** if you do not have an extension.
 3. **Analyze** — Animated steps (wallet → txs → verify → activity → risk → decision). This is UX, not a live engine.
-4. **Overview** — Score stays `— · —` until you run the agent. Then **742**.
-5. **Agent** — Mock underwriting. Risk copy is labeled as mock; it is not live fraud detection.
+4. **Overview** — Score stays `— · —` until you run the agent. Then the Kredoof score if the API is on, otherwise **742**.
+5. **Agent** — Kredoof underwriting when `NEXT_PUBLIC_API_URL` is set. Risk copy is still not live fraud detection.
 6. **Report** — Lender view + Download (HTML) / Print.
 
 On desktop: full-width site, header, sidebar. On mobile: same flow, bottom tabs.
@@ -125,8 +127,9 @@ components/
   layout/, kredoof/  # Earlier shell pieces; product UI is primarily `mobile/`
 data/                # Mock applicant, txs, financials, credit decision
 services/
-  blockchain.ts      # Wallet + tx access (mock; swap for RPC/indexer)
-  underwriting.ts     # Credit/risk/report (mock; swap for underwriting API)
+  blockchain.ts      # Wallet + tx access (Kredoof profile or mock)
+  underwriting.ts     # Credit/risk/report (Kredoof profile or mock)
+  engine.ts          # Fetches GET /api/kredoof/profile once
 hooks/               # Client loaders over those services
 types/               # Wallet, transaction, profile, risk, decision
 lib/
@@ -135,7 +138,17 @@ lib/
   report-html.ts     # Frontend-generated HTML report
 ```
 
-**Rule:** do not hard-code ledger rows in screens. Read from `blockchainService` / `underwritingService` (or the hooks). Replace mock implementations in `services/` when the backend exists.
+**Rule:** do not hard-code ledger rows in screens. Read from `blockchainService` / `underwritingService` (or the hooks).
+
+Local API:
+
+```bash
+cd backend
+pip install -r requirements.txt
+python -m uvicorn kredoof.api:app --host 127.0.0.1 --port 8471
+```
+
+Then set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8471` in `.env.local` and restart `npm run dev`. The live Vercel site stays on mock until that env is set in Vercel to a hosted API URL.
 
 ---
 

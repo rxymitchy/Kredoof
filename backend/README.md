@@ -1,6 +1,6 @@
-# Credora Backend — ML Underwriting Engine
+# Kredoof Backend — ML Underwriting Engine
 
-The machine-learning core of Credora: it turns raw on-chain transaction
+The machine-learning core of Kredoof: it turns raw on-chain transaction
 history (USDC/USDT transfers) into an explainable, lender-ready credit
 decision. This folder is self-contained and runs independently of the
 frontend.
@@ -15,8 +15,8 @@ From inside this `backend/` folder:
 
 ```bash
 pip install -r requirements.txt
-python -m credora.train                       # trains the scorecard (~20s)
-python -m uvicorn credora.api:app --port 8471
+python -m kredoof.train                       # trains the scorecard (~20s)
+python -m uvicorn kredoof.api:app --port 8471
 ```
 
 Open http://127.0.0.1:8471 for the built-in demo dashboard, or
@@ -26,37 +26,37 @@ frontend.)
 
 ## Connecting the React frontend
 
-CORS is open in development, so the frontend can run on its own dev server
-and call this API directly:
+CORS allows localhost and `*.vercel.app`. The Next.js app should call:
 
+- `GET  /api/kredoof/profile` — frontend-shaped payload (applicant, txs, score, risk, report)
+- `GET  /api/health` — liveness
 - `GET  /api/demo-wallets` — list the six synthetic demo wallets
-- `GET  /api/score/{wallet_id}?engine=ml|heuristic` — score a demo wallet
+- `GET  /api/score/{wallet_id}?engine=ml|heuristic` — raw engine score
 - `POST /api/score` — score real data: `{ wallet_id, transactions: [...], engine }`
 - `GET  /api/model-card` — training metrics and model coefficients
 
-The decision payload includes `credit_score`, `probability_of_default`,
-`risk_band`, `eligible_amount_kes`, per-feature `reasons`, and an `evidence`
-block with traceable tx hashes — everything the UI needs to render a
-decision screen.
+Set `NEXT_PUBLIC_API_URL` on the frontend to this server's origin. If the
+API is down, the UI falls back to mock data so Vercel keeps working.
 
 ## Adding this to the main repo
 
-Copy this whole `backend/` folder into the root of the existing Credora
+Copy this whole `backend/` folder into the root of the existing Kredoof
 repository, next to the frontend. It brings its own README (this file) and
 touches nothing outside its folder. The `artifacts/` directory (trained
-model) is generated locally by `python -m credora.train` and is
+model) is generated locally by `python -m kredoof.train` and is
 git-ignored, so each environment trains its own copy.
 
 ## What's inside
 
 | Module | Role |
 |---|---|
-| `credora/synth.py` | Synthetic wallet generator across 6 borrower archetypes (steady merchant, growing creator, volatile trader, thin file, risky borrower, wash trader). Stands in for the real Avalanche indexer until it exists — the contract is just the transaction DataFrame schema. |
-| `credora/features.py` | Feature engineering (Pandas): 14 underwriting signals across scale, consistency, cash flow, repayment, counterparty network, integrity and tenure. Every feature is traceable to tx hashes. |
-| `credora/scorecard.py` | **Phase 1** — heuristic expert scorecard. No training data required; ship this on day one. |
-| `credora/model.py` | **Phase 2** — logistic-regression scorecard trained on labelled outcomes. Outputs calibrated probability of default, mapped to a 300–850 score, with exact per-feature reason codes. |
-| `credora/decision.py` | Business policy layer: risk bands, credit limits (multiple of median monthly revenue), KES conversion, hard decline overlays (wash trading, insufficient history). Kept out of the model on purpose. |
-| `credora/api.py` | FastAPI service: `POST /api/score` (raw transactions in, decision out), demo wallets, model card. |
+| `kredoof/synth.py` | Synthetic wallet generator across 6 borrower archetypes (steady merchant, growing creator, volatile trader, thin file, risky borrower, wash trader). Stands in for the real Avalanche indexer until it exists — the contract is just the transaction DataFrame schema. |
+| `kredoof/features.py` | Feature engineering (Pandas): 14 underwriting signals across scale, consistency, cash flow, repayment, counterparty network, integrity and tenure. Every feature is traceable to tx hashes. |
+| `kredoof/scorecard.py` | **Phase 1** — heuristic expert scorecard. No training data required; ship this on day one. |
+| `kredoof/model.py` | **Phase 2** — logistic-regression scorecard trained on labelled outcomes. Outputs calibrated probability of default, mapped to a 300–850 score, with exact per-feature reason codes. |
+| `kredoof/decision.py` | Business policy layer: risk bands, credit limits (multiple of median monthly revenue), KES conversion, hard decline overlays (wash trading, insufficient history). Kept out of the model on purpose. |
+| `kredoof/api.py` | FastAPI service: Kredoof profile, `POST /api/score`, demo wallets, model card. |
+| `kredoof/profile.py` | Maps engine output into the JSON the Next.js screens already expect. |
 | `static/index.html` | Demo dashboard: score gauge, eligibility, reason codes, on-chain evidence. |
 
 ## The ML approach (and why it's staged)

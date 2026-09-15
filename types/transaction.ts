@@ -1,3 +1,5 @@
+import type { DataSource } from "./source";
+
 export type TokenAsset = "USDC" | "USDT";
 
 export type VerificationStatus = "verified" | "unverified";
@@ -20,5 +22,5 @@ export interface OnChainTransaction {
 export interface TransactionListResult {
   items: OnChainTransaction[];
   totalCount: number;
-  source: "mock";
+  source: DataSource;
 }
