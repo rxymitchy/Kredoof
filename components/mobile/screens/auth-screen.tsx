@@ -5,10 +5,12 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 
 export function AuthScreen({
   initialMode = "signup",
+  initialError = null,
   onContinue,
   onBack,
 }: {
   initialMode?: "signin" | "signup";
+  initialError?: string | null;
   onContinue: () => void;
   onBack?: () => void;
 }) {
@@ -23,7 +25,11 @@ export function AuthScreen({
             Got the proof? Get the credit.
           </p>
         </div>
-        <AuthForm initialMode={initialMode} onContinue={onContinue} />
+        <AuthForm
+          initialMode={initialMode}
+          initialError={initialError}
+          onContinue={onContinue}
+        />
         {onBack ? (
           <button
             type="button"

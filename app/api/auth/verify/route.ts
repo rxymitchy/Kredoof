@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyMessage } from "viem";
-import { getSession } from "@/lib/session";
-import { apiOrigin } from "@/lib/session";
+import { apiOrigin, establishSession, getSession } from "@/lib/session";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
@@ -28,17 +27,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
   session.wallet = body.address.toLowerCase();
-  session.signedIn = true;
   session.nonce = undefined;
-  if (body.email) session.email = body.email.toLowerCase();
-  await session.save();
-  if (session.email) {
+  const email = body.email?.toLowerCase() || session.email;
+  if (email) session.email = email;
+  await establishSession({
+    email,
+    name: session.name,
+    wallet: session.wallet,
+  });
+  if (email) {
     const { bindUserWallet } = await import("@/lib/persist");
-    await bindUserWallet(session.email, session.wallet).catch(() => null);
+    await bindUserWallet(email, session.wallet).catch(() => null);
     await fetch(`${apiOrigin()}/api/accounts/bind-wallet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: session.email, wallet: session.wallet }),
+      body: JSON.stringify({ email, wallet: session.wallet }),
+      signal: AbortSignal.timeout(2500),
     }).catch(() => null);
   }
   return NextResponse.json({

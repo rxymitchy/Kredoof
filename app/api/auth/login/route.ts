@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { LoginError, loginUser } from "@/lib/persist";
-import { apiOrigin, getSession } from "@/lib/session";
+import { apiOrigin, establishSession } from "@/lib/session";
 
 type Account = {
   email: string;
@@ -38,6 +38,7 @@ async function loginViaPython(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
+      signal: AbortSignal.timeout(2500),
     });
     const body = await res.json().catch(() => ({}));
     if (res.ok) return body as Account;
@@ -75,12 +76,11 @@ export async function POST(request: Request) {
         throw persistError;
       }
     }
-    const session = await getSession();
-    session.email = data.email;
-    session.name = data.name;
-    session.wallet = data.wallet ?? session.wallet;
-    session.signedIn = true;
-    await session.save();
+    await establishSession({
+      email: data.email,
+      name: data.name,
+      wallet: data.wallet,
+    });
     return NextResponse.json(data);
   } catch (error) {
     const field = error instanceof LoginError ? error.field : "email";

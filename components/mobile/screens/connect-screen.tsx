@@ -15,21 +15,15 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PrimaryButton } from "@/components/mobile/ui";
 import { AVALANCHE_CHAIN_ID } from "@/lib/constants";
 import { shortenAddress } from "@/lib/format";
-import { walletConnectEnabled } from "@/lib/wagmi";
-
-const WANTED = [
-  { match: "metamask", label: "MetaMask" },
-  { match: "coinbase", label: "Coinbase Wallet" },
-  { match: "walletconnect", label: "WalletConnect" },
-  { match: "rabby", label: "Rabby Wallet" },
-];
 
 export function ConnectScreen({
   onContinue,
   onDemo,
+  onSignOut,
 }: {
   onContinue: () => void;
   onDemo: () => void;
+  onSignOut?: () => void;
 }) {
   const { address, isConnected, connector } = useAccount();
   const chainId = useChainId();
@@ -43,13 +37,16 @@ export function ConnectScreen({
   const onAvalanche = chainId === AVALANCHE_CHAIN_ID;
 
   const buttons = useMemo(() => {
-    return WANTED.map((wanted) => {
-      const found = connectors.find((c) =>
-        c.name.toLowerCase().includes(wanted.match)
-      );
-      return { ...wanted, connector: found };
+    const seen = new Set<string>();
+    return connectors.filter((item) => {
+      const key = item.id.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }, [connectors]);
+
+  const names = buttons.map((item) => item.name).join(", ");
 
   return (
     <PhoneShell>
@@ -70,7 +67,7 @@ export function ConnectScreen({
             <div>
               <div className="font-heading text-sm font-bold">Avalanche wallet</div>
               <div className="text-[11.5px] text-muted-foreground">
-                MetaMask, Coinbase, Rabby, WalletConnect
+                {names || "Choose a wallet"}
               </div>
             </div>
           </div>
@@ -109,25 +106,20 @@ export function ConnectScreen({
               )}
             </>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {buttons.map((item) => {
                 const pending = Boolean(
                   isPending &&
-                    item.connector &&
                     variables?.connector &&
                     "id" in variables.connector &&
-                    variables.connector.id === item.connector.id
+                    variables.connector.id === item.id
                 );
-                const wcBlocked =
-                  item.match === "walletconnect" && !walletConnectEnabled;
                 return (
                   <button
-                    key={item.label}
+                    key={item.id}
                     type="button"
-                    disabled={isPending || !item.connector || wcBlocked}
-                    onClick={() => {
-                      if (item.connector) connect({ connector: item.connector });
-                    }}
+                    disabled={isPending}
+                    onClick={() => connect({ connector: item })}
                     className="font-heading flex items-center justify-center gap-1.5 rounded-xl border border-hairline bg-white px-3 py-4 text-sm font-semibold disabled:opacity-60"
                   >
                     {pending ? (
@@ -135,11 +127,7 @@ export function ConnectScreen({
                     ) : (
                       <Wallet size={13} className="text-mint-deep" />
                     )}
-                    {pending
-                      ? "Connecting…"
-                      : wcBlocked
-                        ? "WalletConnect"
-                        : item.label}
+                    {pending ? "Connecting…" : item.name}
                   </button>
                 );
               })}
@@ -226,6 +214,15 @@ export function ConnectScreen({
         >
           Preview with sample Avalanche ledger
         </button>
+        {onSignOut ? (
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="mt-4 block text-sm text-muted-foreground"
+          >
+            Sign out
+          </button>
+        ) : null}
       </div>
     </PhoneShell>
   );

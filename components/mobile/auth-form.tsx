@@ -14,9 +14,11 @@ import { cn } from "@/lib/utils";
 
 export function AuthForm({
   initialMode = "signup",
+  initialError = null,
   onContinue,
 }: {
   initialMode?: "signin" | "signup";
+  initialError?: string | null;
   onContinue: () => void;
 }) {
   const [mode, setAuthMode] = useState<"signin" | "signup">(initialMode);
@@ -31,7 +33,7 @@ export function AuthForm({
   const [serverPasswordError, setServerPasswordError] = useState<
     string | null
   >(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -87,7 +89,7 @@ export function AuthForm({
           : data.error ?? "Could not save that account";
       if (mode === "signin" && data.field === "password") {
         setServerPasswordError(message);
-      } else if (mode === "signin" && data.field === "email") {
+      } else if (data.field === "email" || /already exists/i.test(message)) {
         setServerEmailError(message);
       } else {
         setError(message);
@@ -98,7 +100,11 @@ export function AuthForm({
       setAuthMode("signin");
       setPassword("");
       setTouched({});
-      setNotice("Account created. Sign in with your email and password.");
+      setNotice(
+        data.emailSent
+          ? "Account created. Check your email for a confirmation link, or sign in with your password."
+          : "Account created. Sign in with your email and password."
+      );
       return;
     }
     onContinue();

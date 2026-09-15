@@ -2,9 +2,20 @@
 
 import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 
 export function LandingScreen() {
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data: { signedIn?: boolean }) => {
+        setSignedIn(Boolean(data.signedIn));
+      })
+      .catch(() => undefined);
+  }, []);
   return (
     <PhoneShell>
       <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
@@ -29,10 +40,10 @@ export function LandingScreen() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href="/onboard?step=signup"
+              href={signedIn ? "/onboard?step=connect" : "/onboard?step=signup"}
               className="font-heading inline-flex w-full items-center justify-center rounded-2xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground sm:w-auto"
             >
-              Sign up
+              {signedIn ? "Continue" : "Sign up"}
             </Link>
             <Link
               href="/how"
@@ -42,13 +53,33 @@ export function LandingScreen() {
             </Link>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            Have an account?{" "}
-            <Link
-              href="/onboard?step=signin"
-              className="font-semibold text-mint-deep underline-offset-4 hover:underline"
-            >
-              Sign in
-            </Link>
+            {signedIn ? (
+              <>
+                Not you?{" "}
+                <button
+                  type="button"
+                  className="font-semibold text-mint-deep underline-offset-4 hover:underline"
+                  onClick={async () => {
+                    await fetch("/api/auth/logout", { method: "POST" }).catch(
+                      () => null
+                    );
+                    setSignedIn(false);
+                  }}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                Have an account?{" "}
+                <Link
+                  href="/onboard?step=signin"
+                  className="font-semibold text-mint-deep underline-offset-4 hover:underline"
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
           </p>
         </div>
 

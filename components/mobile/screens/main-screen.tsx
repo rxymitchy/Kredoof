@@ -67,6 +67,7 @@ export function MainScreen({
   onPrint,
   reportId,
   applicant,
+  onSignOut,
 }: {
   tab: MainTab;
   onTab: (tab: MainTab) => void;
@@ -80,6 +81,7 @@ export function MainScreen({
   onPrint: () => void;
   reportId: string;
   applicant: Applicant;
+  onSignOut?: () => void;
 }) {
   const { address, connector } = useAccount();
   const connectors = useConnectors();
@@ -167,6 +169,18 @@ export function MainScreen({
                   <span>{c.name}</span>
                 </button>
               ))}
+              {onSignOut ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSwitcher(false);
+                    onSignOut();
+                  }}
+                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
+                >
+                  Sign out
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

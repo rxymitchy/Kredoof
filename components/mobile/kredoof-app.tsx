@@ -44,10 +44,12 @@ export function KredoofApp({
   startAt = "auth",
   initialTab = "portfolio",
   initialAuthMode = "signup",
+  initialError = null,
 }: {
   startAt?: AppStage;
   initialTab?: MainTab;
   initialAuthMode?: "signin" | "signup";
+  initialError?: string | null;
 }) {
   const router = useRouter();
   const { address } = useAccount();
@@ -60,6 +62,26 @@ export function KredoofApp({
   const [liveTxs, setLiveTxs] = useState<OnChainTransaction[] | null>(null);
   const [agentStage, setAgentStage] = useState<AgentStage>("idle");
   const [agentLog, setAgentLog] = useState<string[]>([]);
+  const [sessionReady, setSessionReady] = useState(startAt !== "auth");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data: { signedIn?: boolean }) => {
+        if (cancelled) return;
+        if (data.signedIn && (startAt === "auth" || startAt === "connect")) {
+          setStage("connect");
+        }
+        setSessionReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setSessionReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [startAt]);
 
   const needsProfile = stage === "main" || stage === "bundling";
   const underwriting = useUnderwritingProfile(needsProfile);
@@ -160,6 +182,16 @@ export function KredoofApp({
     URL.revokeObjectURL(url);
   };
 
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    router.push("/");
+    router.refresh();
+  }
+
+  if (!sessionReady) {
+    return null;
+  }
+
   if (stage === "how") {
     return (
       <HowItWorksScreen
@@ -176,6 +208,7 @@ export function KredoofApp({
     return (
       <AuthScreen
         initialMode={authMode}
+        initialError={initialError}
         onContinue={() => setStage("connect")}
         onBack={() => router.push("/")}
       />
@@ -192,6 +225,9 @@ export function KredoofApp({
         onDemo={() => {
           setLiveMode(false);
           setStage("bundling");
+        }}
+        onSignOut={() => {
+          void signOut();
         }}
       />
     );
@@ -215,6 +251,9 @@ export function KredoofApp({
       onDownload={downloadReport}
       onPrint={() => window.print()}
       reportId={reportId}
+      onSignOut={() => {
+        void signOut();
+      }}
     />
   );
 }
