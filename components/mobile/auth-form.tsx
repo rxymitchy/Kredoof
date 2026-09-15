@@ -12,18 +12,23 @@ import {
 } from "@/lib/account-rules";
 import { cn } from "@/lib/utils";
 
+export type AuthMode = "signin" | "signup" | "forgot" | "reset";
+
 export function AuthForm({
   initialMode = "signup",
   initialError = null,
+  resetToken = "",
   onContinue,
 }: {
-  initialMode?: "signin" | "signup";
+  initialMode?: AuthMode;
   initialError?: string | null;
+  resetToken?: string;
   onContinue: () => void;
 }) {
-  const [mode, setAuthMode] = useState<"signin" | "signup">(initialMode);
+  const [mode, setAuthMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -51,9 +56,24 @@ export function AuthForm({
     serverEmailError ?? (touched.email ? emailHint(email) : null);
   const passwordError =
     serverPasswordError ?? (touched.password ? passwordHint(password) : null);
+  const confirmError =
+    mode === "reset" && touched.confirm && confirmPassword !== password
+      ? "Passwords do not match"
+      : null;
 
   function mark(field: string) {
     setTouched((prev) => ({ ...prev, [field]: true }));
+  }
+
+  function switchMode(next: AuthMode) {
+    setAuthMode(next);
+    setError(null);
+    setServerEmailError(null);
+    setServerPasswordError(null);
+    setNotice(null);
+    setTouched({});
+    setPassword("");
+    setConfirmPassword("");
   }
 
   async function submit() {
@@ -62,10 +82,55 @@ export function AuthForm({
       lastName: true,
       email: true,
       password: true,
+      confirm: true,
     });
     setError(null);
     setServerEmailError(null);
     setServerPasswordError(null);
+    if (mode === "forgot") {
+      const invalid = emailHint(email);
+      if (invalid) return;
+      setBusy(true);
+      const res = await fetch("/api/auth/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setBusy(false);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setServerEmailError(data.error ?? "Could not send a reset email");
+        return;
+      }
+      setNotice(
+        "If that email has an account, we sent a reset link. Check your inbox."
+      );
+      return;
+    }
+    if (mode === "reset") {
+      const invalid = passwordHint(password);
+      if (invalid) return;
+      if (confirmPassword !== password) return;
+      if (!resetToken) {
+        setError("This reset link is missing. Request a new one.");
+        return;
+      }
+      setBusy(true);
+      const res = await fetch("/api/auth/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: resetToken, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) {
+        setError(data.error ?? "Could not reset that password");
+        return;
+      }
+      switchMode("signin");
+      setNotice("Password updated. Sign in with your new password.");
+      return;
+    }
     const localError =
       mode === "signup"
         ? validateSignup({ firstName, lastName, email, password })
@@ -97,9 +162,8 @@ export function AuthForm({
       return;
     }
     if (mode === "signup") {
-      setAuthMode("signin");
-      setPassword("");
-      setTouched({});
+      switchMode("signin");
+      setEmail(email);
       setNotice(
         data.emailSent
           ? "Account created. Check your email for a confirmation link, or sign in with your password."
@@ -110,6 +174,15 @@ export function AuthForm({
     onContinue();
   }
 
+  const submitLabel =
+    mode === "signin"
+      ? "Sign in"
+      : mode === "forgot"
+        ? "Send reset link"
+        : mode === "reset"
+          ? "Update password"
+          : "Sign up";
+
   return (
     <form
       onSubmit={(e) => {
@@ -118,30 +191,36 @@ export function AuthForm({
       }}
       noValidate
     >
-      <div className="mb-5 flex rounded-[14px] bg-[#F3F5F1] p-1">
-        {(["signup", "signin"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => {
-              setAuthMode(m);
-              setError(null);
-              setServerEmailError(null);
-              setServerPasswordError(null);
-              setNotice(null);
-              setTouched({});
-            }}
-            className={cn(
-              "font-heading flex-1 rounded-[10px] py-2.5 text-sm font-bold",
-              mode === m
-                ? "bg-white text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                : "text-[#a9b0a2]"
-            )}
-          >
-            {m === "signin" ? "Sign in" : "Sign up"}
-          </button>
-        ))}
-      </div>
+      {mode === "signup" || mode === "signin" ? (
+        <div className="mb-5 flex rounded-[14px] bg-[#F3F5F1] p-1">
+          {(["signup", "signin"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => switchMode(m)}
+              className={cn(
+                "font-heading flex-1 rounded-[10px] py-2.5 text-sm font-bold",
+                mode === m
+                  ? "bg-white text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                  : "text-[#a9b0a2]"
+              )}
+            >
+              {m === "signin" ? "Sign in" : "Sign up"}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="mb-5">
+          <h2 className="font-heading text-lg font-bold">
+            {mode === "reset" ? "Choose a new password" : "Forgot password"}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {mode === "reset"
+              ? "Use at least 8 characters."
+              : "We’ll email a reset link if that address has an account."}
+          </p>
+        </div>
+      )}
       {mode === "signup" ? (
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
@@ -190,67 +269,117 @@ export function AuthForm({
           </div>
         </div>
       ) : null}
-      <div className="mb-3">
-        <label
-          className={cn(
-            "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
-            emailError ? "border-[#C24545]" : "border-hairline"
-          )}
+      {mode !== "reset" ? (
+        <div className="mb-3">
+          <label
+            className={cn(
+              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              emailError ? "border-[#C24545]" : "border-hairline"
+            )}
+          >
+            <Mail size={16} className="text-[#a9b0a2]" />
+            <input
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setServerEmailError(null);
+              }}
+              onBlur={() => mark("email")}
+              placeholder="you@gmail.com"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              required
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </label>
+          {emailError ? (
+            <p className="mt-1 text-xs text-[#C24545]">{emailError}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {mode !== "forgot" ? (
+        <div className={mode === "signin" ? "mb-2" : "mb-5"}>
+          <label
+            className={cn(
+              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              passwordError ? "border-[#C24545]" : "border-hairline"
+            )}
+          >
+            <Lock size={16} className="text-[#a9b0a2]" />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setServerPasswordError(null);
+              }}
+              onBlur={() => mark("password")}
+              placeholder={mode === "reset" ? "New password" : "Password"}
+              minLength={8}
+              autoComplete={
+                mode === "signin" ? "current-password" : "new-password"
+              }
+              required
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </label>
+          {passwordError ? (
+            <p className="mt-1 text-xs text-[#C24545]">{passwordError}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {mode === "reset" ? (
+        <div className="mb-5">
+          <label
+            className={cn(
+              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              confirmError ? "border-[#C24545]" : "border-hairline"
+            )}
+          >
+            <Lock size={16} className="text-[#a9b0a2]" />
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onBlur={() => mark("confirm")}
+              placeholder="Confirm password"
+              minLength={8}
+              autoComplete="new-password"
+              required
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </label>
+          {confirmError ? (
+            <p className="mt-1 text-xs text-[#C24545]">{confirmError}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {mode === "signin" ? (
+        <button
+          type="button"
+          onClick={() => switchMode("forgot")}
+          className="mb-5 block text-sm font-semibold text-mint-deep"
         >
-          <Mail size={16} className="text-[#a9b0a2]" />
-          <input
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setServerEmailError(null);
-            }}
-            onBlur={() => mark("email")}
-            placeholder="you@gmail.com"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            required
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-          />
-        </label>
-        {emailError ? (
-          <p className="mt-1 text-xs text-[#C24545]">{emailError}</p>
-        ) : null}
-      </div>
-      <div className="mb-5">
-        <label
-          className={cn(
-            "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
-            passwordError ? "border-[#C24545]" : "border-hairline"
-          )}
-        >
-          <Lock size={16} className="text-[#a9b0a2]" />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setServerPasswordError(null);
-            }}
-            onBlur={() => mark("password")}
-            placeholder="Password"
-            minLength={8}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            required
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-          />
-        </label>
-        {passwordError ? (
-          <p className="mt-1 text-xs text-[#C24545]">{passwordError}</p>
-        ) : null}
-      </div>
+          Forgot password?
+        </button>
+      ) : null}
       {notice ? (
         <p className="mb-3 text-sm text-[#1F5A34]">{notice}</p>
       ) : null}
       {error ? <p className="mb-3 text-sm text-[#C24545]">{error}</p> : null}
       <PrimaryButton type="submit" disabled={busy}>
-        {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
+        {busy ? "Please wait…" : submitLabel}
       </PrimaryButton>
+      {mode === "forgot" || mode === "reset" ? (
+        <button
+          type="button"
+          onClick={() => switchMode("signin")}
+          className="mt-4 block w-full text-center text-sm text-muted-foreground"
+        >
+          Back to sign in
+        </button>
+      ) : null}
     </form>
   );
 }

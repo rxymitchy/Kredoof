@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import { type AuthMode } from "@/components/mobile/auth-form";
 import { AuthScreen } from "@/components/mobile/screens/auth-screen";
 import { BundlingScreen } from "@/components/mobile/screens/bundling-screen";
 import { ConnectScreen } from "@/components/mobile/screens/connect-screen";
@@ -45,16 +46,18 @@ export function KredoofApp({
   initialTab = "portfolio",
   initialAuthMode = "signup",
   initialError = null,
+  resetToken = "",
 }: {
   startAt?: AppStage;
   initialTab?: MainTab;
-  initialAuthMode?: "signin" | "signup";
+  initialAuthMode?: AuthMode;
   initialError?: string | null;
+  resetToken?: string;
 }) {
   const router = useRouter();
   const { address } = useAccount();
   const [stage, setStage] = useState<AppStage>(startAt);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">(initialAuthMode);
+  const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
   const [tab, setTab] = useState<MainTab>(initialTab);
   const [bundleDone, setBundleDone] = useState(0);
   const [liveMode, setLiveMode] = useState(false);
@@ -70,7 +73,12 @@ export function KredoofApp({
       .then((res) => res.json())
       .then((data: { signedIn?: boolean }) => {
         if (cancelled) return;
-        if (data.signedIn && (startAt === "auth" || startAt === "connect")) {
+        if (
+          data.signedIn &&
+          (startAt === "auth" || startAt === "connect") &&
+          initialAuthMode !== "reset" &&
+          initialAuthMode !== "forgot"
+        ) {
           setStage("connect");
         }
         setSessionReady(true);
@@ -81,7 +89,7 @@ export function KredoofApp({
     return () => {
       cancelled = true;
     };
-  }, [startAt]);
+  }, [startAt, initialAuthMode]);
 
   const needsProfile = stage === "main" || stage === "bundling";
   const underwriting = useUnderwritingProfile(needsProfile);
@@ -209,6 +217,7 @@ export function KredoofApp({
       <AuthScreen
         initialMode={authMode}
         initialError={initialError}
+        resetToken={resetToken}
         onContinue={() => setStage("connect")}
         onBack={() => router.push("/")}
       />

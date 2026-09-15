@@ -1,16 +1,18 @@
 "use client";
 
-import { AuthForm } from "@/components/mobile/auth-form";
+import { AuthForm, type AuthMode } from "@/components/mobile/auth-form";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 
 export function AuthScreen({
   initialMode = "signup",
   initialError = null,
+  resetToken = "",
   onContinue,
   onBack,
 }: {
-  initialMode?: "signin" | "signup";
+  initialMode?: AuthMode;
   initialError?: string | null;
+  resetToken?: string;
   onContinue: () => void;
   onBack?: () => void;
 }) {
@@ -28,6 +30,7 @@ export function AuthScreen({
         <AuthForm
           initialMode={initialMode}
           initialError={initialError}
+          resetToken={resetToken}
           onContinue={onContinue}
         />
         {onBack ? (

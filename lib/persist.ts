@@ -4,6 +4,8 @@ import path from "path";
 import { list, put } from "@vercel/blob";
 import {
   displayName,
+  emailHint,
+  passwordHint,
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
@@ -18,6 +20,8 @@ export type StoredUser = {
   emailVerified?: boolean;
   verifyTokenHash?: string | null;
   verifyTokenExpires?: number | null;
+  resetTokenHash?: string | null;
+  resetTokenExpires?: number | null;
   createdAt: number;
 };
 
@@ -36,6 +40,7 @@ const LEGACY_USERS_PATH = "kredoof-users.json";
 const LOANS_PATH = "kredoof-loans.json";
 const USER_PREFIX = "kredoof-accounts/";
 const VERIFY_PREFIX = "kredoof-verify/";
+const RESET_PREFIX = "kredoof-reset/";
 
 function hashPassword(password: string): string {
   return pbkdf2Sync(password, "kredoof-v1", 120_000, 32, "sha256").toString(
@@ -59,12 +64,16 @@ function verifyObjectPath(tokenHash: string): string {
   return `${VERIFY_PREFIX}${tokenHash}.json`;
 }
 
-function newVerifyToken(): { token: string; hash: string; expires: number } {
+function resetObjectPath(tokenHash: string): string {
+  return `${RESET_PREFIX}${tokenHash}.json`;
+}
+
+function newToken(hours: number): { token: string; hash: string; expires: number } {
   const token = randomBytes(32).toString("hex");
   return {
     token,
     hash: hashToken(token),
-    expires: Date.now() + 24 * 60 * 60 * 1000,
+    expires: Date.now() + hours * 60 * 60 * 1000,
   };
 }
 
@@ -231,7 +240,7 @@ export async function registerUser(input: {
   if (await getUserByEmail(email)) {
     throw new DuplicateEmailError();
   }
-  const verify = newVerifyToken();
+  const verify = newToken(24);
   const user: StoredUser = {
     email,
     passwordHash: hashPassword(input.password),
@@ -242,6 +251,8 @@ export async function registerUser(input: {
     emailVerified: false,
     verifyTokenHash: verify.hash,
     verifyTokenExpires: verify.expires,
+    resetTokenHash: null,
+    resetTokenExpires: null,
     createdAt: Date.now(),
   };
   await saveUser(user, "create");
@@ -323,6 +334,55 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
     firstName: user.firstName,
     lastName: user.lastName,
   };
+}
+
+export async function requestPasswordReset(emailRaw: string): Promise<{
+  email: string;
+  name: string;
+  resetToken: string;
+} | null> {
+  const email = normalizeEmail(emailRaw);
+  if (emailHint(email)) return null;
+  const user = await getUserByEmail(email);
+  if (!user) return null;
+  const reset = newToken(1);
+  user.resetTokenHash = reset.hash;
+  user.resetTokenExpires = reset.expires;
+  await saveUser(user, "update");
+  await writeObject(
+    resetObjectPath(reset.hash),
+    { email, expires: reset.expires },
+    "update"
+  ).catch(() => null);
+  return { email: user.email, name: user.name, resetToken: reset.token };
+}
+
+export async function resetPasswordWithToken(
+  tokenRaw: string,
+  password: string
+): Promise<{ email: string; name: string }> {
+  const passwordError = passwordHint(password);
+  if (passwordError) throw new Error(passwordError);
+  const token = tokenRaw.trim();
+  if (!token) throw new Error("Missing reset link");
+  const hash = hashToken(token);
+  const lookup = await readObject<{ email?: string; expires?: number }>(
+    resetObjectPath(hash)
+  );
+  const email = lookup?.email ? normalizeEmail(lookup.email) : "";
+  const user = email ? await getUserByEmail(email) : null;
+  if (!user || user.resetTokenHash !== hash) {
+    throw new Error("This reset link is invalid");
+  }
+  const expires = lookup?.expires ?? user.resetTokenExpires ?? 0;
+  if (expires < Date.now()) {
+    throw new Error("This reset link has expired. Request a new one.");
+  }
+  user.passwordHash = hashPassword(password);
+  user.resetTokenHash = null;
+  user.resetTokenExpires = null;
+  await saveUser(user, "update");
+  return { email: user.email, name: user.name };
 }
 
 export async function bindUserWallet(emailRaw: string, wallet: string) {
