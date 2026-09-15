@@ -35,7 +35,9 @@ export function apiBaseUrl(): string {
 export function loadEngineProfile(): Promise<EngineProfile | null> {
   if (!BASE) return Promise.resolve(null);
   if (!inflight) {
-    inflight = fetch(`${BASE}/api/kredoof/profile`)
+    inflight = fetch(`${BASE}/api/kredoof/profile`, {
+      signal: AbortSignal.timeout(2500),
+    })
       .then((res) => (res.ok ? (res.json() as Promise<EngineProfile>) : null))
       .catch(() => null);
   }

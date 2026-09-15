@@ -1,5 +1,5 @@
-import { KredoofApp } from "@/components/mobile/kredoof-app";
+import { LandingScreen } from "@/components/mobile/screens/landing-screen";
 
 export default function HomePage() {
-  return <KredoofApp />;
+  return <LandingScreen />;
 }

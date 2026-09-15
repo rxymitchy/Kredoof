@@ -1,6 +1,6 @@
 import { WalletProviders } from "@/components/providers/wallet-providers";
 
-export default function DashboardLayout({
+export default function OnboardLayout({
   children,
 }: {
   children: React.ReactNode;

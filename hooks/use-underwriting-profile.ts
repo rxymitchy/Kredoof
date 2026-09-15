@@ -10,15 +10,19 @@ import type {
   RiskAnalysis,
 } from "@/types";
 
-export function useUnderwritingProfile() {
+export function useUnderwritingProfile(enabled = true) {
   const [applicant, setApplicant] = useState<Applicant | null>(null);
   const [financial, setFinancial] = useState<FinancialProfile | null>(null);
   const [decision, setDecision] = useState<CreditDecision | null>(null);
   const [risk, setRisk] = useState<RiskAnalysis | null>(null);
   const [pricing, setPricing] = useState<PricingModel | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
     let active = true;
     Promise.all([
       underwritingService.getApplicant(),
@@ -38,7 +42,7 @@ export function useUnderwritingProfile() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [enabled]);
 
   return {
     applicant,

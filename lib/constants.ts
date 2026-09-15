@@ -15,6 +15,10 @@ export const USDC_AVALANCHE =
 export const USDT_AVALANCHE =
   "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7" as const;
 
+export const KREDOOF_TREASURY =
+  (process.env.NEXT_PUBLIC_TREASURY_ADDRESS as `0x${string}` | undefined) ??
+  "0xF48AFA3d8443752630B6BB9cFEA5fA68199402f7";
+
 export const DASHBOARD_NAV = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/transactions", label: "Transactions" },

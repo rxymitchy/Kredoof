@@ -42,6 +42,9 @@ yarn-error.log*
 *.pyc
 backend/artifacts/
 
+# local account files
+/data/*.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

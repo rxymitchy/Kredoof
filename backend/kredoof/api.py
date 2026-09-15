@@ -21,7 +21,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from dataclasses import dataclass
+
 from . import model as model_mod
+from . import store
 from . import synth
 from .decision import make_decision
 from .features import FEATURE_DESCRIPTIONS, compute_features
@@ -81,6 +84,41 @@ class ScoreRequest(BaseModel):
     wallet_id: str
     transactions: list[Transaction]
     engine: str = Field(default="ml", pattern="^(ml|heuristic)$")
+
+
+class AccountRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+    first_name: str = ""
+    last_name: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class BindWalletRequest(BaseModel):
+    email: str
+    wallet: str
+
+
+class LiveProfileRequest(BaseModel):
+    wallet_id: str
+    name: str = "On-chain business"
+    owner: str = "Owner"
+    email: str | None = None
+    transactions: list[Transaction]
+    engine: str = Field(default="ml", pattern="^(ml|heuristic)$")
+
+
+@dataclass
+class _LiveWallet:
+    wallet_id: str
+    archetype: str
+    display_name: str
+    transactions: pd.DataFrame
 
 
 def _score_frame(wallet_id: str, tx: pd.DataFrame, engine: str) -> dict:
@@ -151,6 +189,100 @@ def kredoof_profile_wallet(wallet_id: str):
         raise HTTPException(404, "Unknown demo wallet")
     brand = JUA_KALI if wallet.archetype == "steady_merchant" else None
     return _kredoof_profile(wallet, brand=brand)
+
+
+@app.post("/api/kredoof/profile")
+def kredoof_live_profile(req: LiveProfileRequest):
+    """Score a real wallet's USDC/USDT transfers and return the frontend payload."""
+    _ensure_ready()
+    if not req.transactions:
+        raise HTTPException(422, "No USDC/USDT transfers found for this wallet")
+    tx = pd.DataFrame([t.model_dump() for t in req.transactions])
+    tx["ts"] = pd.to_datetime(tx["ts"])
+    payload = _score_frame(req.wallet_id, tx, req.engine)
+    initials = "".join(part[0] for part in req.name.split()[:2]).upper() or "KW"
+    brand = {
+        "name": req.name,
+        "owner": req.owner or (req.email.split("@")[0] if req.email else "Owner"),
+        "initials": initials[:2],
+        "sector": "On-chain activity",
+        "location": "Avalanche C-Chain",
+        "walletAddress": req.wallet_id,
+        "network": "Avalanche",
+    }
+    wallet = _LiveWallet(
+        wallet_id=req.wallet_id,
+        archetype="live",
+        display_name=req.name,
+        transactions=tx,
+    )
+    return build_profile(wallet, payload, brand=brand)
+
+
+@app.post("/api/accounts/register")
+def accounts_register(req: AccountRequest):
+    try:
+        return store.register(
+            req.email,
+            req.password,
+            req.name,
+            req.first_name,
+            req.last_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/accounts/login")
+def accounts_login(req: LoginRequest):
+    try:
+        return store.login(req.email, req.password)
+    except ValueError as exc:
+        raise HTTPException(401, str(exc)) from exc
+
+
+@app.post("/api/accounts/bind-wallet")
+def accounts_bind(req: BindWalletRequest):
+    try:
+        return store.bind_wallet(req.email, req.wallet)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/loans/{wallet}")
+def list_loans(wallet: str):
+    return store.loans_for_wallet(wallet)
+
+
+class OpenLoanRequest(BaseModel):
+    wallet: str
+    amount_usdc: float
+    email: str | None = None
+
+
+@app.post("/api/loans")
+def create_loan(req: OpenLoanRequest):
+    return store.open_loan(req.wallet, req.amount_usdc, req.email)
+
+
+class LoanTxRequest(BaseModel):
+    tx_hash: str
+
+
+@app.post("/api/loans/{loan_id}/disbursed")
+def loan_disbursed(loan_id: str, req: LoanTxRequest):
+    try:
+        return store.mark_disbursed(loan_id, req.tx_hash)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/loans/{loan_id}/repaid")
+def loan_repaid(loan_id: str, req: LoanTxRequest):
+    try:
+        return store.mark_repaid(loan_id, req.tx_hash)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.get("/api/demo-wallets")
