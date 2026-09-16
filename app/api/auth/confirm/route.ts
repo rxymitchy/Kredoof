@@ -7,7 +7,11 @@ export async function GET(request: Request) {
   const origin = appOrigin(request);
   try {
     const user = await confirmEmailToken(token);
-    await establishSession({ email: user.email, name: user.name });
+    await establishSession({
+      email: user.email,
+      phone: user.phone,
+      name: user.name,
+    });
     return NextResponse.redirect(`${origin}/onboard?step=connect`);
   } catch (error) {
     const message =

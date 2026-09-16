@@ -92,11 +92,13 @@ class AccountRequest(BaseModel):
     name: str = ""
     first_name: str = ""
     last_name: str = ""
+    phone: str = ""
 
 
 class LoginRequest(BaseModel):
-    email: str
     password: str
+    identifier: str = ""
+    email: str = ""
 
 
 class BindWalletRequest(BaseModel):
@@ -228,6 +230,7 @@ def accounts_register(req: AccountRequest):
             req.name,
             req.first_name,
             req.last_name,
+            req.phone,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -236,7 +239,7 @@ def accounts_register(req: AccountRequest):
 @app.post("/api/accounts/login")
 def accounts_login(req: LoginRequest):
     try:
-        return store.login(req.email, req.password)
+        return store.login(req.identifier or req.email, req.password)
     except ValueError as exc:
         raise HTTPException(401, str(exc)) from exc
 

@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 export type KredoofSession = {
   nonce?: string;
   email?: string;
+  phone?: string;
   name?: string;
   wallet?: string;
   signedIn?: boolean;
@@ -14,8 +15,8 @@ const password =
   process.env.SESSION_SECRET?.padEnd(32, "k") ??
   "kredoof-dev-session-secret-key!!";
 
-/** Signed-in cookie lasts 7 days, refreshed on each authenticated request. */
-export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+/** Signed-in cookie lasts 1 hour, refreshed on each authenticated request. */
+export const SESSION_TTL_SECONDS = 60 * 60;
 
 const sessionOptions: SessionOptions = {
   password: password.slice(0, 64).padEnd(32, "x"),
@@ -36,11 +37,13 @@ export async function getSession() {
 
 export async function establishSession(input: {
   email?: string | null;
+  phone?: string | null;
   name?: string | null;
   wallet?: string | null;
 }) {
   const session = await getSession();
   if (input.email) session.email = input.email;
+  if (input.phone) session.phone = input.phone;
   if (input.name) session.name = input.name;
   if (input.wallet) session.wallet = input.wallet;
   session.signedIn = true;
@@ -50,30 +53,26 @@ export async function establishSession(input: {
 }
 
 export async function readActiveSession() {
+  const empty = {
+    signedIn: false as const,
+    email: null,
+    phone: null,
+    name: null,
+    wallet: null,
+  };
   const session = await getSession();
-  if (!session.signedIn) {
-    return {
-      signedIn: false as const,
-      email: null,
-      name: null,
-      wallet: null,
-    };
-  }
+  if (!session.signedIn) return empty;
   const lastSeen = session.lastSeenAt ?? Date.now();
   if (Date.now() - lastSeen > SESSION_TTL_SECONDS * 1000) {
     session.destroy();
-    return {
-      signedIn: false as const,
-      email: null,
-      name: null,
-      wallet: null,
-    };
+    return empty;
   }
   session.lastSeenAt = Date.now();
   await session.save();
   return {
     signedIn: true as const,
     email: session.email ?? null,
+    phone: session.phone ?? null,
     name: session.name ?? null,
     wallet: session.wallet ?? null,
   };

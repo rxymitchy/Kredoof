@@ -9,12 +9,28 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import sqlite3
 import time
 import uuid
 from pathlib import Path
 
 _SALT = b"kredoof-v1"
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _normalize_phone(raw: str) -> str:
+    digits = re.sub(r"\D", "", raw or "")
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if digits.startswith("0") and len(digits) == 10:
+        digits = "254" + digits[1:]
+    if digits.startswith("2540") and len(digits) == 13:
+        digits = "254" + digits[4:]
+    return digits
 
 
 def _db_path() -> Path:
@@ -35,6 +51,7 @@ def _connect() -> sqlite3.Connection:
             name TEXT NOT NULL,
             first_name TEXT,
             last_name TEXT,
+            phone TEXT,
             wallet TEXT,
             created_at INTEGER NOT NULL
         )"""
@@ -52,12 +69,19 @@ def _connect() -> sqlite3.Connection:
         )"""
     )
     conn.commit()
-    for col, kind in (("first_name", "TEXT"), ("last_name", "TEXT")):
+    for col, kind in (("first_name", "TEXT"), ("last_name", "TEXT"), ("phone", "TEXT")):
         try:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} {kind}")
             conn.commit()
         except sqlite3.OperationalError:
             pass
+    try:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique ON users(phone) WHERE phone IS NOT NULL AND phone != ''"
+        )
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -71,8 +95,10 @@ def register(
     name: str,
     first_name: str = "",
     last_name: str = "",
+    phone: str = "",
 ) -> dict:
-    email = email.strip().lower()
+    email = _normalize_email(email)
+    phone = _normalize_phone(phone)
     first_name = (first_name or "").strip()
     last_name = (last_name or "").strip()
     name = (name or f"{first_name} {last_name}".strip() or email.split("@")[0]).strip()[:80]
@@ -80,43 +106,57 @@ def register(
         raise ValueError("First name and last name are required")
     if "@" not in email or "." not in email.split("@")[-1] or len(email.split("@")[-1].split(".")[-1]) < 2:
         raise ValueError("Use an address like you@gmail.com")
+    if len(phone) < 10 or len(phone) > 15:
+        raise ValueError("Use a mobile number like 0712 345 678")
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters")
     conn = _connect()
     try:
         conn.execute(
-            """INSERT INTO users (email, password_hash, name, first_name, last_name, created_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (email, hash_password(password), name, first_name, last_name, int(time.time())),
+            """INSERT INTO users (email, password_hash, name, first_name, last_name, phone, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (email, hash_password(password), name, first_name, last_name, phone, int(time.time())),
         )
         conn.commit()
     except sqlite3.IntegrityError as exc:
+        text = str(exc).lower()
+        if "phone" in text:
+            raise ValueError("An account with that phone number already exists") from exc
         raise ValueError("An account with that email already exists") from exc
     finally:
         conn.close()
     return {
         "email": email,
+        "phone": phone,
         "name": name,
         "firstName": first_name,
         "lastName": last_name,
     }
 
 
-def login(email: str, password: str) -> dict:
-    email = email.strip().lower()
+def login(identifier: str, password: str) -> dict:
+    identifier = (identifier or "").strip()
     conn = _connect()
     try:
-        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if "@" in identifier:
+            row = conn.execute(
+                "SELECT * FROM users WHERE email = ?",
+                (_normalize_email(identifier),),
+            ).fetchone()
+        else:
+            phone = _normalize_phone(identifier)
+            row = conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
     finally:
         conn.close()
     if row is None:
-        raise ValueError("No account for that email. Sign up first.")
+        raise ValueError("No account for that email or phone. Sign up first.")
     expected = row["password_hash"]
     actual = hash_password(password)
     if not hmac.compare_digest(expected, actual):
         raise ValueError("Wrong password")
     return {
         "email": row["email"],
+        "phone": row["phone"] or "",
         "name": row["name"],
         "firstName": row["first_name"] or "",
         "lastName": row["last_name"] or "",

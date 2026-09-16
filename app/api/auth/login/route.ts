@@ -4,6 +4,7 @@ import { apiOrigin, establishSession } from "@/lib/session";
 
 type Account = {
   email: string;
+  phone?: string;
   name: string;
   firstName?: string;
   lastName?: string;
@@ -23,6 +24,12 @@ function classify(message: string): LoginError {
   if (text.includes("password")) {
     return new LoginError("password", "Wrong password");
   }
+  if (text.includes("phone")) {
+    return new LoginError(
+      "phone",
+      "No account for that phone number. Sign up first."
+    );
+  }
   return new LoginError(
     "email",
     "No account for that email. Sign up first."
@@ -30,14 +37,14 @@ function classify(message: string): LoginError {
 }
 
 async function loginViaPython(
-  email: string,
+  identifier: string,
   password: string
 ): Promise<Account | LoginError | null> {
   try {
     const res = await fetch(`${apiOrigin()}/api/accounts/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, email: identifier, password }),
       signal: AbortSignal.timeout(2500),
     });
     const body = await res.json().catch(() => ({}));
@@ -49,23 +56,28 @@ async function loginViaPython(
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { email?: string; password?: string };
-  if (!body.email || !body.password) {
+  const body = (await request.json()) as {
+    identifier?: string;
+    email?: string;
+    password?: string;
+  };
+  const identifier = body.identifier ?? body.email ?? "";
+  if (!identifier || !body.password) {
     return NextResponse.json(
-      { error: "Email and password required", field: "email" },
+      { error: "Email or phone and password required", field: "email" },
       { status: 400 }
     );
   }
   try {
     let data: Account;
     try {
-      data = await loginUser(body.email, body.password);
+      data = await loginUser(identifier, body.password);
     } catch (error) {
       const persistError =
         error instanceof LoginError
           ? error
           : classify(error instanceof Error ? error.message : "");
-      const fallback = await loginViaPython(body.email, body.password);
+      const fallback = await loginViaPython(identifier, body.password);
       if (fallback && !(fallback instanceof LoginError)) {
         data = fallback;
       } else if (persistError.field === "password") {
@@ -78,6 +90,7 @@ export async function POST(request: Request) {
     }
     await establishSession({
       email: data.email,
+      phone: data.phone,
       name: data.name,
       wallet: data.wallet,
     });
@@ -87,7 +100,7 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error
         ? error.message
-        : "No account for that email. Sign up first.";
+        : "No account for that email or phone. Sign up first.";
     return NextResponse.json({ error: message, field }, { status: 401 });
   }
 }
