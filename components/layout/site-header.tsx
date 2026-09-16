@@ -24,7 +24,7 @@ export function SiteHeader() {
             </span>
             <AddressDisplay address={shortenAddress(address)} />
             <span className="rounded-md border border-border px-2 py-1">
-              Avalanche
+              Ready
             </span>
           </div>
         ) : null}

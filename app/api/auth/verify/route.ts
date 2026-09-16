@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
   const message = [
-    "Kredoof wants you to sign in with your Avalanche account:",
+    "Kredoof wants to confirm this is your wallet:",
     body.address,
     "",
     `Nonce: ${session.nonce}`,

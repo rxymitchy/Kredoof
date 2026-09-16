@@ -52,11 +52,11 @@ export function ConnectScreen({
     <PhoneShell>
       <div className="mx-auto max-w-2xl">
         <h1 className="font-heading text-3xl font-extrabold sm:text-4xl">
-          Connect wallet
+          Connect your wallet
         </h1>
         <p className="mt-3 mb-8 max-w-xl text-base leading-7 text-muted-foreground">
-          Use an Avalanche C-Chain wallet, then sign a message so we can score
-          your USDC/USDT history.
+          Pick the wallet app you use for money. Then approve a quick check so
+          we can see your payment history.
         </p>
 
         <div className="mb-6 rounded-3xl border border-hairline bg-white p-6 sm:p-8">
@@ -65,7 +65,7 @@ export function ConnectScreen({
               <Wallet size={17} className="text-mint-deep" />
             </div>
             <div>
-              <div className="font-heading text-sm font-bold">Avalanche wallet</div>
+              <div className="font-heading text-sm font-bold">Your wallet</div>
               <div className="text-[11.5px] text-muted-foreground">
                 {names || "Choose a wallet"}
               </div>
@@ -87,7 +87,7 @@ export function ConnectScreen({
                   </div>
                 </div>
                 <span className="rounded-lg bg-mint px-2 py-0.5 text-[10.5px] text-accent-foreground">
-                  {onAvalanche ? "Avalanche" : `Chain ${chainId}`}
+                  {onAvalanche ? "Ready" : "Wrong network"}
                 </span>
               </div>
               {!onAvalanche ? (
@@ -96,12 +96,12 @@ export function ConnectScreen({
                   onClick={() => switchChain({ chainId: avalanche.id })}
                   className="font-heading mt-3 w-full rounded-xl border border-hairline py-3 text-sm font-bold"
                 >
-                  {isSwitching ? "Switching…" : "Switch to Avalanche"}
+                  {isSwitching ? "Switching…" : "Switch to the right network"}
                 </button>
               ) : (
                 <p className="mt-3 text-[11.5px] leading-5 text-muted-foreground">
-                  Sign to confirm you own this address. Kredoof then reads
-                  Avalanche USDC/USDT transfers and scores them.
+                  Approve in your wallet so we know it’s yours. We then look at
+                  your incoming and outgoing payments to see if a loan fits.
                 </p>
               )}
             </>
@@ -141,7 +141,7 @@ export function ConnectScreen({
           onClick={async () => {
             if (!address) return;
             if (!onAvalanche) {
-              setError("Switch to Avalanche C-Chain first");
+              setError("Please switch to the right network in your wallet first");
               return;
             }
             setError(null);
@@ -149,7 +149,7 @@ export function ConnectScreen({
               const nonceRes = await fetch("/api/auth/nonce");
               const { nonce } = await nonceRes.json();
               const message = [
-                "Kredoof wants you to sign in with your Avalanche account:",
+                "Kredoof wants to confirm this is your wallet:",
                 address,
                 "",
                 `Nonce: ${nonce}`,
@@ -161,24 +161,24 @@ export function ConnectScreen({
                 body: JSON.stringify({ address, signature }),
               });
               if (!verify.ok) {
-                setError("Signature did not verify");
+                setError("We could not confirm this wallet. Please try again.");
                 return;
               }
               setSigned(true);
               onContinue();
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Sign-in failed");
+              setError(err instanceof Error ? err.message : "Could not continue. Please try again.");
             }
           }}
           disabled={!isConnected || isSigning || !onAvalanche}
           className="sm:w-auto sm:px-8"
         >
           {isSigning
-            ? "Check your wallet…"
+            ? "Check your wallet app…"
             : isConnected
               ? signed
-                ? "Analyze my wallet"
-                : "Sign and analyze my wallet"
+                ? "See my payments"
+                : "Approve and continue"
               : "Connect a wallet to continue"}
         </PrimaryButton>
 
@@ -201,8 +201,8 @@ export function ConnectScreen({
               />
             </div>
             <p className="px-4 py-3 text-xs leading-5 text-muted-foreground">
-              Install MetaMask from metamask.io, then add Avalanche C-Chain
-              (network 43114) before you connect here.
+              Install MetaMask from metamask.io, then come back here and tap
+              the MetaMask button.
             </p>
           </div>
         ) : null}
@@ -212,7 +212,7 @@ export function ConnectScreen({
           onClick={onDemo}
           className="mt-4 block text-sm text-muted-foreground"
         >
-          Preview with sample Avalanche ledger
+          See a sample result first
         </button>
         {onSignOut ? (
           <button

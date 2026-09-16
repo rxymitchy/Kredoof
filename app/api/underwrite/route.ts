@@ -13,13 +13,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "No USDC or USDT transfers found on Avalanche for this wallet yet.",
+          "We did not find payments in this wallet yet.",
         items: [],
       },
       { status: 422 }
     );
   }
-  const name = session.name || "On-chain business";
+  const name = session.name || "Your business";
   const res = await fetch(`${apiOrigin()}/api/kredoof/profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   const profile = await res.json().catch(() => ({}));
   if (!res.ok) {
     return NextResponse.json(
-      { error: profile.detail ?? "Scoring failed", items: txs },
+      { error: profile.detail ?? "We could not finish the review.", items: txs },
       { status: res.status }
     );
   }

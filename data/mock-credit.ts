@@ -17,46 +17,46 @@ export const mockCreditDecision: CreditDecision = {
   recommendedLimitKsh: 750_000,
   recommendedLimitLabel: "KSh 750,000",
   rationale: [
-    { label: "Transaction Activity", rating: "strong" },
-    { label: "Cash Flow Consistency", rating: "strong" },
-    { label: "Repayment History", rating: "excellent" },
-    { label: "Counterparty Diversity", rating: "good" },
-    { label: "Risk Indicators", rating: "low" },
+    { label: "How often you get paid", rating: "strong" },
+    { label: "Steady money in and out", rating: "strong" },
+    { label: "Paying back on time", rating: "excellent" },
+    { label: "Different people you pay", rating: "good" },
+    { label: "Warning signs", rating: "low" },
   ],
   methodology: [
     {
       id: "wallet-age",
-      label: "Wallet age & continuity",
+      label: "How long you have used this wallet",
       weightPercent: 15,
       scoreOutOf100: 79,
     },
     {
       id: "volume",
-      label: "Transaction volume & frequency",
+      label: "How often money moves",
       weightPercent: 25,
       scoreOutOf100: 88,
     },
     {
       id: "cash-flow",
-      label: "Cash-flow consistency",
+      label: "Steady money in and out",
       weightPercent: 20,
       scoreOutOf100: 84,
     },
     {
       id: "repayment",
-      label: "On-chain repayment history",
+      label: "Paying back on time",
       weightPercent: 20,
       scoreOutOf100: 100,
     },
     {
       id: "counterparties",
-      label: "Counterparty diversity",
+      label: "Different people you pay",
       weightPercent: 10,
       scoreOutOf100: 72,
     },
     {
       id: "risk-activity",
-      label: "Dispute / reversal / risk activity",
+      label: "Returned or disputed payments",
       weightPercent: 10,
       scoreOutOf100: 94,
     },
@@ -68,12 +68,12 @@ export const mockRiskAnalysis: RiskAnalysis = {
   overall: "medium-low",
   overallLabel: "Medium-Low",
   factors: [
-    { id: "cash-flow", label: "Cash Flow Consistency", rating: "strong" },
-    { id: "repayment", label: "Repayment History", rating: "excellent" },
-    { id: "diversity", label: "Counterparty Diversity", rating: "good" },
-    { id: "concentration", label: "Transaction Concentration", rating: "low" },
-    { id: "suspicious", label: "Suspicious Activity", rating: "low" },
-    { id: "circular", label: "Circular Transaction Risk", rating: "low" },
+    { id: "cash-flow", label: "Steady money in and out", rating: "strong" },
+    { id: "repayment", label: "Paying back on time", rating: "excellent" },
+    { id: "diversity", label: "Different people you pay", rating: "good" },
+    { id: "concentration", label: "Too much money from one place", rating: "low" },
+    { id: "suspicious", label: "Unusual payments", rating: "low" },
+    { id: "circular", label: "Money sent in a circle", rating: "low" },
   ],
   source: "mock",
   disclaimer:
@@ -81,7 +81,7 @@ export const mockRiskAnalysis: RiskAnalysis = {
 };
 
 export const mockCreditReport: CreditReport = {
-  title: "KREDOOF CREDIT REPORT",
+  title: "YOUR KREDOOF SUMMARY",
   applicantName: mockApplicant.name,
   sector: mockApplicant.sector,
   location: mockApplicant.location,
@@ -92,7 +92,7 @@ export const mockCreditReport: CreditReport = {
   riskLabel: "Medium-Low",
   recommendedLimitLabel: "KSh 750,000",
   basis:
-    "This decision is based on verified on-chain transaction activity analyzed by Kredoof.",
+    "This summary is based on payments we could see in your wallet.",
   disclaimer:
     "Kredoof provides credit decision support. Final KYC, lending approval and disbursement remain the responsibility of the lender.",
   source: "mock",

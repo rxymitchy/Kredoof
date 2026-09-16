@@ -30,7 +30,7 @@ export const wagmiConfig = createConfig({
             metadata: {
               name: "Kredoof",
               description:
-                "Credit underwriting from verified on-chain transaction activity.",
+                "See if your payments can support a loan.",
               url: "https://kredoof.vercel.app",
               icons: [],
             },

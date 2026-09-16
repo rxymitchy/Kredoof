@@ -5,12 +5,12 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PrimaryButton } from "@/components/mobile/ui";
 
 const STEPS = [
-  "Connect wallet",
-  "Kredoof reads on-chain activity",
-  "It verifies the records",
-  "It understands financial behavior",
-  "It checks risk",
-  "It issues an explainable credit decision",
+  "Connect your wallet",
+  "We look at your payments",
+  "We check they are real",
+  "We see how money comes in and goes out",
+  "We look for warning signs",
+  "You get a simple yes, no, or how much",
 ];
 
 export function HowItWorksScreen({
@@ -27,12 +27,11 @@ export function HowItWorksScreen({
           How it works
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-          Traditional alternative credit may use M-Pesa data, bank statements,
-          or device behavior. Kredoof starts from verified blockchain transaction
-          activity.
+          Banks often ask for paper statements. We look at the money that
+          already moved through your wallet.
         </p>
         <p className="font-serif mt-4 text-xl italic text-foreground">
-          The transaction itself is the evidence.
+          Your payments are the proof.
         </p>
       </div>
       <div className="mt-8 grid gap-3 sm:grid-cols-2">

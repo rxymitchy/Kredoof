@@ -21,9 +21,9 @@ export const KREDOOF_TREASURY =
 
 export const DASHBOARD_NAV = [
   { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/transactions", label: "Transactions" },
-  { href: "/dashboard/activity", label: "Financial Activity" },
-  { href: "/dashboard/risk", label: "Risk Analysis" },
-  { href: "/dashboard/decision", label: "Credit Decision" },
-  { href: "/dashboard/report", label: "Credit Report" },
+  { href: "/dashboard/transactions", label: "Payments" },
+  { href: "/dashboard/activity", label: "How money moves" },
+  { href: "/dashboard/risk", label: "Warning signs" },
+  { href: "/dashboard/decision", label: "Loan result" },
+  { href: "/dashboard/report", label: "Documents" },
 ] as const;

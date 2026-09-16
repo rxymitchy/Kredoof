@@ -15,7 +15,7 @@ export function DashboardSidebar() {
           KREDOOF
         </Link>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          Credit underwriting from verified on-chain activity.
+          We look at your payments to see if a loan fits.
         </p>
       </div>
       <nav className="space-y-1 px-3">
