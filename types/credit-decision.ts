@@ -49,7 +49,7 @@ export interface ContinuousUnderwritingVision {
 }
 
 export interface CreditReport {
-  title: "KREDOOF CREDIT REPORT";
+  title: string;
   applicantName: string;
   sector: string;
   location: string;
