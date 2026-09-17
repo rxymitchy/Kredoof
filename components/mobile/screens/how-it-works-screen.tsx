@@ -11,7 +11,7 @@ const STEPS = [
   "We see how money comes in and goes out",
   "We look for warning signs",
   "You get a simple yes, no, or how much",
-  "If you take a loan, a service fee comes out of what you receive. Pay back the amount we show you, on time",
+  "If you qualify, we pass your file to a lender. If you take a loan, pay back the amount we show you, on time",
 ];
 
 export function HowItWorksScreen({

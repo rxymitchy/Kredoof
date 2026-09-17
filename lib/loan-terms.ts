@@ -6,8 +6,11 @@ export const SHORT_TERM_DAYS = 16;
 export const LONG_TERM_DAYS = 30;
 export const LONG_TERM_MIN_SCORE = 740;
 
-/** Taken from the borrower when money is sent, not to check a score. */
-export const APP_FEE_KES = 100;
+/** Lender pays this for an exclusive qualified borrower file. Not taken from the borrower. */
+export const LEAD_FEE_KES = 100;
+/** @deprecated Use LEAD_FEE_KES. Kept so older records still read. */
+export const APP_FEE_KES = LEAD_FEE_KES;
+/** Taken from the funded loan amount when the lender actually sends money. */
 export const ORIGINATION_RATE = 0.01;
 
 /** No late fee for this many calendar days after the due date. */
@@ -21,8 +24,12 @@ function round6(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
 
+export function leadFeeUsdc(): number {
+  return round6(LEAD_FEE_KES / KES_PER_USDC);
+}
+
 export function appFeeUsdc(): number {
-  return round6(APP_FEE_KES / KES_PER_USDC);
+  return leadFeeUsdc();
 }
 
 export function originationFee(principal: number): number {
@@ -30,9 +37,7 @@ export function originationFee(principal: number): number {
 }
 
 export function netDisbursed(principal: number): number {
-  return round6(
-    Math.max(0.01, principal - originationFee(principal) - appFeeUsdc())
-  );
+  return round6(Math.max(0.01, principal - originationFee(principal)));
 }
 
 export function repaymentDue(principal: number, days: number): number {

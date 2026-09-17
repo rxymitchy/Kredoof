@@ -12,6 +12,7 @@ import {
   hasOpenLoan,
   hasRepaidLoan,
   getUserByEmail,
+  markLeadFunded,
   newLoanId,
   recordLoan,
   updateLoan,
@@ -22,7 +23,6 @@ import {
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
   allowsLongTerm,
-  appFeeUsdc,
   netDisbursed,
   originationFee,
   repaymentDue,
@@ -96,7 +96,6 @@ export async function POST(request: Request) {
   }
   const repayAmount = repaymentDue(body.amountUsdc, termDays);
   const sent = netDisbursed(body.amountUsdc);
-  const appFee = appFeeUsdc();
   const origination = originationFee(body.amountUsdc);
   const pk = (key.startsWith("0x") ? key : `0x${key}`) as Hex;
   const account = privateKeyToAccount(pk);
@@ -118,7 +117,8 @@ export async function POST(request: Request) {
       amount_usdc: body.amountUsdc,
       net_usdc: sent,
       origination_usdc: origination,
-      app_fee_usdc: appFee,
+      app_fee_usdc: 0,
+      lead_id: null as string | null,
       repay_usdc: repayAmount,
       term_days: termDays,
       daily_rate: DAILY_INTEREST_RATE,
@@ -129,6 +129,15 @@ export async function POST(request: Request) {
       email: session.email ?? body.email,
     };
     await recordLoan(opened).catch(() => null);
+    const lead = await markLeadFunded({
+      email: session.email ?? body.email,
+      wallet: body.to,
+      loanId: opened.id,
+    }).catch(() => null);
+    if (lead) {
+      opened.lead_id = lead.id;
+      await updateLoan(opened.id, { lead_id: lead.id }).catch(() => null);
+    }
     await fetch(`${apiOrigin()}/api/loans`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

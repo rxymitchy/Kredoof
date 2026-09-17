@@ -12,7 +12,7 @@ import {
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
-import { isOpenLoanStatus } from "@/lib/loan-terms";
+import { isOpenLoanStatus, LEAD_FEE_KES } from "@/lib/loan-terms";
 
 export type StoredUser = {
   id: string;
@@ -41,6 +41,7 @@ export type StoredLoan = {
   net_usdc?: number;
   origination_usdc?: number;
   app_fee_usdc?: number;
+  lead_id?: string | null;
   repay_usdc?: number;
   term_days?: number;
   daily_rate?: number;
@@ -51,8 +52,23 @@ export type StoredLoan = {
   created_at: number;
 };
 
+export type StoredLead = {
+  id: string;
+  email?: string | null;
+  wallet: string;
+  score?: number;
+  limit_kes?: number;
+  fee_kes: number;
+  payer: "lender";
+  status: "offered" | "funded";
+  lender?: string;
+  loan_id?: string | null;
+  created_at: number;
+};
+
 const STORE = "kredoof-v2";
 const LOANS_PATH = `${STORE}/loans.json`;
+const LEADS_PATH = `${STORE}/leads.json`;
 const VERIFY_PREFIX = `${STORE}/verify/`;
 const RESET_PREFIX = `${STORE}/reset/`;
 
@@ -550,6 +566,70 @@ export async function recordLoan(loan: StoredLoan): Promise<StoredLoan> {
   next.unshift(loan);
   await writeJson(LOANS_PATH, next);
   return loan;
+}
+
+export async function listLeads(): Promise<StoredLead[]> {
+  return readJson<StoredLead[]>(LEADS_PATH, []);
+}
+
+export async function recordQualifiedLead(input: {
+  email?: string | null;
+  wallet: string;
+  score?: number;
+  limit_kes?: number;
+}): Promise<StoredLead> {
+  const email = input.email ? normalizeEmail(input.email) : "";
+  const wallet = input.wallet.toLowerCase();
+  const leads = await listLeads();
+  const open = leads.find((lead) => {
+    if (lead.status !== "offered") return false;
+    const matchEmail = email && lead.email && normalizeEmail(lead.email) === email;
+    const matchWallet = lead.wallet.toLowerCase() === wallet;
+    return Boolean(matchEmail || matchWallet);
+  });
+  if (open) {
+    open.score = input.score ?? open.score;
+    open.limit_kes = input.limit_kes ?? open.limit_kes;
+    await writeJson(LEADS_PATH, leads);
+    return open;
+  }
+  const lead: StoredLead = {
+    id: newLoanId(),
+    email: email || null,
+    wallet,
+    score: input.score,
+    limit_kes: input.limit_kes,
+    fee_kes: LEAD_FEE_KES,
+    payer: "lender",
+    status: "offered",
+    lender: "marketplace",
+    loan_id: null,
+    created_at: Date.now(),
+  };
+  leads.unshift(lead);
+  await writeJson(LEADS_PATH, leads);
+  return lead;
+}
+
+export async function markLeadFunded(input: {
+  email?: string | null;
+  wallet: string;
+  loanId: string;
+}): Promise<StoredLead | null> {
+  const email = input.email ? normalizeEmail(input.email) : "";
+  const wallet = input.wallet.toLowerCase();
+  const leads = await listLeads();
+  const lead = leads.find((item) => {
+    if (item.status !== "offered") return false;
+    const matchEmail = email && item.email && normalizeEmail(item.email) === email;
+    const matchWallet = item.wallet.toLowerCase() === wallet;
+    return Boolean(matchEmail || matchWallet);
+  });
+  if (!lead) return null;
+  lead.status = "funded";
+  lead.loan_id = input.loanId;
+  await writeJson(LEADS_PATH, leads);
+  return lead;
 }
 
 export async function updateLoan(

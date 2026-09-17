@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchAvalancheStableTransfers, confirmTransfersOnChain, toScoreRows } from "@/lib/avalanche";
-import { setUserLastScore } from "@/lib/persist";
+import { setUserLastScore, recordQualifiedLead } from "@/lib/persist";
 import { apiOrigin, getSession } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -62,8 +62,17 @@ export async function POST(request: Request) {
     );
   }
   const score = Number(profile?.decision?.score);
+  const limitKes = Number(profile?.decision?.recommendedLimitKsh);
   if (session.email && Number.isFinite(score)) {
     await setUserLastScore(session.email, score).catch(() => null);
+  }
+  if (Number.isFinite(limitKes) && limitKes > 0) {
+    await recordQualifiedLead({
+      email: session.email,
+      wallet: body.address,
+      score: Number.isFinite(score) ? score : undefined,
+      limit_kes: limitKes,
+    }).catch(() => null);
   }
   return NextResponse.json({ ...profile, liveTransactions: txs });
 }

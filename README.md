@@ -143,7 +143,7 @@ Do not commit `data/kredoof-accounts/` or `data/kredoof-verify/`.
 
 - Payments we can see on the wallet are the proof. We do not ask for M-Pesa or paper bank statements.
 - “Prime · KES 2,000,000” is a **vision** milestone, not a promise from this demo.
-- Pitch pricing (not billed here): about KES 50–150 per assessment + 1% on disbursed loans.
+- Pitch pricing: borrower check is free. A lender pays KES 100 for a qualified exclusive file. If they fund, Kredoof also takes 1% of the loan amount. Daily interest goes to the funder.
 
 ---
 
