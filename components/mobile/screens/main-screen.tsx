@@ -70,6 +70,10 @@ export function MainScreen({
   hasOpenLoan = false,
   allowsLongTerm = false,
   openRepayUsdc = null,
+  openAmountDue = null,
+  openLateFee = null,
+  openDueAt = null,
+  openDaysPastDue = 0,
   onLoanChange,
   onDisconnectWallet,
   onDeleteAccount,
@@ -90,6 +94,10 @@ export function MainScreen({
   hasOpenLoan?: boolean;
   allowsLongTerm?: boolean;
   openRepayUsdc?: number | null;
+  openAmountDue?: number | null;
+  openLateFee?: number | null;
+  openDueAt?: number | null;
+  openDaysPastDue?: number;
   onLoanChange?: () => void;
   onDisconnectWallet?: () => void;
   onDeleteAccount?: () => void;
@@ -499,7 +507,7 @@ export function MainScreen({
                       {formatUsdc(ceilingUsdc)}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {formatKesOfUsdc(ceilingUsdc)} · 0.06% a day
+                      {formatKesOfUsdc(ceilingUsdc)}
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
                       Your score is {decision.score} out of 850.
@@ -519,6 +527,10 @@ export function MainScreen({
                     allowsLongTerm={allowsLongTerm}
                     hasOpenLoan={hasOpenLoan}
                     openRepayUsdc={openRepayUsdc}
+                    openAmountDue={openAmountDue}
+                    openLateFee={openLateFee}
+                    openDueAt={openDueAt}
+                    openDaysPastDue={openDaysPastDue}
                     onLoanChange={onLoanChange}
                   />
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">
@@ -614,7 +626,7 @@ export function MainScreen({
                           {formatUsdc(ceilingUsdc)}
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                          {formatKesOfUsdc(ceilingUsdc)} · {band.rate}
+                          {formatKesOfUsdc(ceilingUsdc)}
                         </div>
                       </div>
                     </div>

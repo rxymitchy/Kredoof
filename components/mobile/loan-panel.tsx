@@ -7,10 +7,9 @@ import { PrimaryButton } from "@/components/mobile/ui";
 import { USDC_AVALANCHE, KREDOOF_TREASURY } from "@/lib/constants";
 import { explorerTxUrl, formatUsdc } from "@/lib/format";
 import {
-  DAILY_INTEREST_LABEL,
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
-  interestAmount,
+  netDisbursed,
   repaymentDue,
 } from "@/lib/loan-terms";
 import { cn } from "@/lib/utils";
@@ -30,12 +29,25 @@ const ERC20_TRANSFER = [
 
 const treasury = KREDOOF_TREASURY;
 
+function payByLabel(dueAt?: number | null) {
+  if (!dueAt) return null;
+  return new Date(dueAt).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function LoanPanel({
   eligible,
   limitUsdc,
   allowsLongTerm,
   hasOpenLoan,
   openRepayUsdc,
+  openAmountDue,
+  openLateFee,
+  openDueAt,
+  openDaysPastDue = 0,
   onLoanChange,
 }: {
   eligible: boolean;
@@ -43,6 +55,10 @@ export function LoanPanel({
   allowsLongTerm: boolean;
   hasOpenLoan: boolean;
   openRepayUsdc?: number | null;
+  openAmountDue?: number | null;
+  openLateFee?: number | null;
+  openDueAt?: number | null;
+  openDaysPastDue?: number;
   onLoanChange?: () => void;
 }) {
   const { address } = useAccount();
@@ -55,11 +71,14 @@ export function LoanPanel({
     () => repaymentDue(amount, termDays),
     [amount, termDays]
   );
-  const interest = useMemo(
-    () => interestAmount(amount, termDays),
-    [amount, termDays]
-  );
-  const repayAmount = openRepayUsdc && openRepayUsdc > 0 ? openRepayUsdc : due;
+  const received = useMemo(() => netDisbursed(amount), [amount]);
+  const dueDate = payByLabel(openDueAt);
+  const repayAmount =
+    hasOpenLoan && openAmountDue && openAmountDue > 0
+      ? openAmountDue
+      : hasOpenLoan && openRepayUsdc && openRepayUsdc > 0
+        ? openRepayUsdc
+        : due;
 
   async function draw() {
     setStatus(null);
@@ -74,8 +93,10 @@ export function LoanPanel({
       return;
     }
     setHash(data.hash);
+    const got = data.loan?.net_usdc ?? received;
+    const pay = data.loan?.repay_usdc ?? due;
     setStatus(
-      `The loan is on its way. Pay ${formatUsdc(data.loan?.repay_usdc ?? due)} within ${termDays} days.`
+      `You will receive ${formatUsdc(got)} after the service fee. Send back ${formatUsdc(pay)} in ${termDays} days.`
     );
     onLoanChange?.();
   }
@@ -102,7 +123,7 @@ export function LoanPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ txHash: tx }),
     }).catch(() => null);
-    setStatus("Your repayment has been sent, including the daily interest.");
+    setStatus("Your repayment has been sent.");
     onLoanChange?.();
   }
 
@@ -117,11 +138,13 @@ export function LoanPanel({
   return (
     <div className="mt-4 rounded-2xl border border-hairline bg-[#FAFBF9] p-4 text-left">
       <div className="font-heading text-sm font-bold">Your loan</div>
+      <div className="mt-3 text-sm font-semibold">
+        Approved up to {formatUsdc(amount)}
+      </div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Interest is {DAILY_INTEREST_LABEL} (simple). You pay back more than you
-        borrow. Pick 16 days, or 30 days once we trust this wallet more.
+        You receive {formatUsdc(received)}. The app service fee is already taken
+        out of that amount.
       </p>
-      <div className="mt-3 text-sm font-semibold">Up to {formatUsdc(amount)}</div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           type="button"
@@ -136,7 +159,7 @@ export function LoanPanel({
         >
           Pay in 16 days
           <div className="mt-1 font-normal text-muted-foreground">
-            Pay back {formatUsdc(repaymentDue(amount, SHORT_TERM_DAYS))}
+            Send back {formatUsdc(repaymentDue(amount, SHORT_TERM_DAYS))}
           </div>
         </button>
         <button
@@ -155,15 +178,25 @@ export function LoanPanel({
           Pay in 30 days
           <div className="mt-1 font-normal text-muted-foreground">
             {allowsLongTerm
-              ? `Pay back ${formatUsdc(repaymentDue(amount, LONG_TERM_DAYS))}`
+              ? `Send back ${formatUsdc(repaymentDue(amount, LONG_TERM_DAYS))}`
               : "Unlocks after a paid loan or a stronger score"}
           </div>
         </button>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Interest for {termDays} days: {formatUsdc(interest)}. Total to send back:{" "}
-        {formatUsdc(due)}.
+        Send back {formatUsdc(hasOpenLoan ? repayAmount : due)}
+        {hasOpenLoan && dueDate ? ` by ${dueDate}` : ` in ${termDays} days`}.
       </p>
+      {hasOpenLoan && openDaysPastDue > 0 ? (
+        <p className="mt-2 text-xs font-semibold text-[#C24545]">
+          {dueDate
+            ? `This was due ${dueDate}. Pay today.`
+            : "This loan is past due. Pay today."}
+          {openLateFee && openLateFee > 0
+            ? ` A late charge of ${formatUsdc(openLateFee)} has been added. Send ${formatUsdc(repayAmount)}.`
+            : ""}
+        </p>
+      ) : null}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <PrimaryButton
           onClick={draw}

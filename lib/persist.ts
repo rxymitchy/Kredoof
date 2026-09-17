@@ -38,6 +38,9 @@ export type StoredLoan = {
   email?: string | null;
   wallet: string;
   amount_usdc: number;
+  net_usdc?: number;
+  origination_usdc?: number;
+  app_fee_usdc?: number;
   repay_usdc?: number;
   term_days?: number;
   daily_rate?: number;
