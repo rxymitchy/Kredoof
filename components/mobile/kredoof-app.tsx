@@ -26,19 +26,19 @@ export type AppStage = "how" | "auth" | "connect" | "bundling" | "main";
 
 const BUNDLE_ITEMS = [
   "Wallet connected",
-  "Reading blockchain transactions",
-  "Verifying transaction records",
-  "Analyzing financial activity",
-  "Checking risk indicators",
-  "Preparing credit decision",
+  "Looking at your payments",
+  "Checking they are real",
+  "Understanding how money moves",
+  "Checking for warning signs",
+  "Preparing your result",
 ];
 
 const AGENT_STEPS = [
-  "Pulling verified Avalanche USDC/USDT transfers",
-  "Confirming hashes, counterparties, and amounts",
-  "Scoring wallet age, volume, consistency, repayment, diversity",
-  "Applying policy overlays (wash-trading, thin file)",
-  "Compiling an explainable credit decision",
+  "Collecting your recent payments",
+  "Checking amounts and who you paid",
+  "Seeing how long you have used this wallet",
+  "Checking if payments look regular and on time",
+  "Writing a simple result",
 ];
 
 export function KredoofApp({
@@ -183,7 +183,7 @@ export function KredoofApp({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "kredoof-credit-report.html";
+    a.download = "kredoof-summary.html";
     document.body.appendChild(a);
     a.click();
     a.remove();

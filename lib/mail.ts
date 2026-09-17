@@ -20,7 +20,12 @@ async function sendEmail(input: {
       html: input.html,
     }),
   });
-  return res.ok;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error("Resend email failed", res.status, detail);
+    return false;
+  }
+  return true;
 }
 
 export async function sendRegistrationEmail(input: {

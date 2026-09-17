@@ -29,7 +29,6 @@ import {
   formatTokenAmount,
   formatUsdc,
   shortenAddress,
-  shortenHash,
   usdcFromKes,
   explorerTxUrl,
 } from "@/lib/format";
@@ -143,7 +142,7 @@ export function MainScreen({
                 {displayAddress}
               </span>
               <span className="hidden text-xs text-[#a9b0a2] sm:inline">
-                Avalanche
+                Connected
               </span>
               <ChevronDown size={14} className="text-[#a9b0a2]" />
             </button>
@@ -193,8 +192,8 @@ export function MainScreen({
             {(
               [
                 { id: "portfolio", icon: Wallet, label: "Overview" },
-                { id: "agent", icon: Sparkles, label: "Agent" },
-                { id: "report", icon: BadgeCheck, label: "Report" },
+                { id: "agent", icon: Sparkles, label: "Review" },
+                { id: "report", icon: BadgeCheck, label: "Documents" },
               ] as const
             ).map((item) => (
               <button
@@ -227,20 +226,20 @@ export function MainScreen({
               }}
             >
               <div className="text-sm text-[#215B36]/85">
-                Verified credit score
+                Your credit score
               </div>
               <div className="font-heading mt-1 text-5xl leading-[1.1] font-extrabold text-[#123A22] sm:text-6xl">
                 {agentStage === "done" ? decision.score : "— · —"}
               </div>
               <div className="mt-2 text-sm text-[#215B36]/85">
-                {applicant.sector} · Avalanche ·{" "}
-                {financial.totalTransactions.toLocaleString("en-KE")} on-chain
-                entries
+                {applicant.sector} ·{" "}
+                {financial.totalTransactions.toLocaleString("en-KE")} payments
+                found
               </div>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-white/55 px-4 py-3">
                   <div className="text-xs text-[#215B36]">
-                    Avg monthly volume
+                    Typical monthly activity
                   </div>
                   <div className="font-heading text-base font-bold text-[#123A22]">
                     {formatUsdc(avgUsdc)}
@@ -250,12 +249,12 @@ export function MainScreen({
                   </div>
                 </div>
                 <div className="rounded-2xl bg-white/55 px-4 py-3">
-                  <div className="text-xs text-[#215B36]">Wallet age</div>
+                  <div className="text-xs text-[#215B36]">Using this wallet</div>
                   <div className="font-heading text-base font-bold text-[#123A22]">
                     {financial.walletAgeMonths} months
                   </div>
                   <div className="text-xs text-[#215B36]/75">
-                    100% on-time repayment
+                    Paid back on time
                   </div>
                 </div>
               </div>
@@ -267,18 +266,18 @@ export function MainScreen({
               className="mt-4"
             >
               {agentStage === "done"
-                ? "Re-run agent underwriting"
-                : "Run agent underwriting"}
+                ? "Review my payments again"
+                : "Review my payments"}
             </PrimaryButton>
             </div>
 
             <div className="rounded-3xl border border-hairline bg-white p-5 sm:p-6 lg:col-span-3">
             <div className="mb-4 flex items-center justify-between">
               <span className="font-heading text-lg font-bold">
-                Transaction history
+                Your payments
               </span>
               <span className="text-sm text-[#a9b0a2]">
-                {applicant.network}
+                Confirmed
               </span>
             </div>
 
@@ -308,10 +307,10 @@ export function MainScreen({
                   </div>
                   <div>
                     <div className="text-sm font-medium">
-                      {t.asset} transfer
+                      {t.direction === "in" ? "Money in" : "Money out"}
                     </div>
                     <div className="font-mono text-xs text-[#a9b0a2]">
-                      {formatDayMonth(t.timestamp)} · {shortenHash(t.hash)}
+                      {formatDayMonth(t.timestamp)}
                     </div>
                   </div>
                 </div>
@@ -339,7 +338,7 @@ export function MainScreen({
           <div className="fade-up grid items-start gap-8 md:grid-cols-2">
             <div className="rounded-3xl border border-hairline bg-white px-6 py-8 text-center">
             <div className="font-heading mb-6 text-xl font-bold">
-              Underwriting agent
+              Your credit review
             </div>
             <div className="flex justify-center">
               <Orb spinning={agentStage === "thinking"} size={148} />
@@ -357,11 +356,12 @@ export function MainScreen({
               </div>
             ) : (
               <p className="mt-6 text-sm leading-6 text-muted-foreground">
-                Ready to review{" "}
+                We’ll look at{" "}
                 <strong className="text-foreground">
                   {applicant.name}
                 </strong>
-                ’s bundled on-chain ledger and issue a verified decision?
+                ’s payments and tell you, in simple terms, if a loan looks like
+                a fit.
               </p>
             )}
             </div>
@@ -374,7 +374,7 @@ export function MainScreen({
                     className="mb-3 flex w-full items-center justify-between rounded-2xl border border-hairline bg-[#FAFBF9] px-4 py-4 text-left"
                   >
                     <span className="text-sm sm:text-base">
-                      Run underwriting for {applicant.name}
+                      See if {applicant.name} can get a loan
                     </span>
                     <ChevronRight size={16} className="text-[#a9b0a2]" />
                   </button>
@@ -384,7 +384,7 @@ export function MainScreen({
                     className="mb-3 flex w-full items-center justify-between rounded-2xl border border-hairline bg-[#FAFBF9] px-4 py-4"
                   >
                     <span className="text-sm sm:text-base">
-                      Why on-chain evidence?
+                      Why we look at your payments
                     </span>
                     {showDiff ? (
                       <ChevronDown size={16} className="text-[#a9b0a2]" />
@@ -395,22 +395,21 @@ export function MainScreen({
                   {showDiff ? (
                     <div className="fade-up rounded-2xl bg-[#F4F7F3] px-4 py-4 text-sm leading-7 text-muted-foreground">
                       <p className="font-serif mb-2 text-base text-foreground italic">
-                        Traditional alternative credit may use M-Pesa, bank
-                        statements, or device behavior. Kredoof starts from
-                        verified blockchain activity.
+                        Banks often ask for paper statements. We look at money
+                        that already moved through your wallet instead.
                       </p>
                       •{" "}
                       <strong className="text-foreground">
-                        Native, not extracted
+                        Real payments
                       </strong>{" "}
-                      — the transfer hash is the evidence, not a curated
-                      statement.
+                      — we use the payments themselves, not a typed-up
+                      summary.
                       <br />•{" "}
                       <strong className="text-foreground">
-                        Agentic, continuous
+                        It can change
                       </strong>{" "}
-                      — eligibility can update as the wallet keeps transacting,
-                      not only at application time.
+                      — as you keep sending and receiving money, your result
+                      can improve.
                     </div>
                   ) : null}
                 </>
@@ -436,7 +435,7 @@ export function MainScreen({
                       {formatKesOfUsdc(ceilingUsdc)} · {band.rate}
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
-                      Score {decision.score} / 850 · Risk {decision.riskLabel}
+                      Your score is {decision.score} out of 850.
                     </div>
                   </div>
                   <button
@@ -444,7 +443,7 @@ export function MainScreen({
                     onClick={() => onTab("report")}
                     className="font-heading flex w-full items-center justify-between rounded-2xl bg-primary px-4 py-3.5 text-sm font-bold text-white"
                   >
-                    View downloadable report
+                    View your documents
                     <ChevronRight size={16} />
                   </button>
                   <LoanPanel
@@ -452,9 +451,8 @@ export function MainScreen({
                     limitUsdc={usdcFromKes(decision.recommendedLimitKsh)}
                   />
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                    Your credit profile isn’t static. This next-milestone
-                    preview is product vision, not a live forecast: Prime · KES
-                    2,000,000.
+                    This is a snapshot. Keep using your wallet for payments and
+                    your score can change over time.
                   </p>
                 </div>
               )}
@@ -471,11 +469,11 @@ export function MainScreen({
                   className="mx-auto mb-2.5 text-[#a9b0a2]"
                 />
                 <div className="mb-4 text-[13px] text-muted-foreground">
-                  Run the agent to unlock a verified, downloadable on-chain
-                  credit report.
+                  Run a review to unlock a simple document you can download
+                  or print.
                 </div>
                 <PrimaryButton onClick={() => onTab("agent")}>
-                  Go to agent
+                  Go to review
                 </PrimaryButton>
               </div>
             ) : (
@@ -493,7 +491,7 @@ export function MainScreen({
                   >
                     <div>
                       <div className="font-serif text-[13px] font-bold tracking-wide text-white">
-                        KREDOOF CREDIT REPORT
+                        YOUR KREDOOF SUMMARY
                       </div>
                       <div className="font-mono mt-1 text-[9.5px] text-[#C9A227]">
                         {reportId} · {applicant.location}
@@ -506,12 +504,11 @@ export function MainScreen({
                   <div className="bg-[#FEFEFC] px-[18px] py-4">
                     {(
                       [
-                        ["Applicant", applicant.name],
-                        ["Sector", applicant.sector],
+                        ["Name", applicant.name],
+                        ["Work", applicant.sector],
                         ["Location", applicant.location],
                         ["Wallet", displayAddress],
-                        ["Network", "Avalanche"],
-                        ["History", `${financial.walletAgeMonths} months`],
+                        ["Using this wallet", `${financial.walletAgeMonths} months`],
                       ] as const
                     ).map(([k, v]) => (
                       <div
@@ -532,7 +529,7 @@ export function MainScreen({
                     <div className="mt-4 flex items-end justify-between">
                       <div>
                         <div className="text-[9.5px] tracking-wide text-[#a9b0a2] uppercase">
-                          Composite score
+                          Your score
                         </div>
                         <div className="font-heading text-[30px] font-extrabold text-[#0F2340]">
                           {decision.score}{" "}
@@ -551,7 +548,7 @@ export function MainScreen({
                       </div>
                     </div>
                     <div className="mt-[18px] mb-1.5 text-[10px] tracking-wide text-[#a9b0a2] uppercase">
-                      Score methodology
+                      How we looked at your payments
                     </div>
                     {decision.methodology.map((f) => (
                       <div
@@ -562,17 +559,23 @@ export function MainScreen({
                           <Clock size={12} className="text-muted-foreground" />
                           <span className="text-[11px]">{f.label}</span>
                         </div>
-                        <span className="font-mono text-[10.5px] text-muted-foreground">
-                          {f.weightPercent}% · {f.scoreOutOf100}/100
+                        <span className="text-[10.5px] font-semibold text-muted-foreground">
+                          {f.scoreOutOf100 >= 90
+                            ? "Excellent"
+                            : f.scoreOutOf100 >= 75
+                              ? "Strong"
+                              : f.scoreOutOf100 >= 60
+                                ? "Okay"
+                                : "Needs work"}
                         </span>
                       </div>
                     ))}
                     <p className="font-mono mt-4 border-t border-hairline pt-2.5 text-[9px] leading-[1.6] text-[#a9b0a2]">
-                      This decision is based on verified on-chain transaction
-                      activity analyzed by Kredoof. Not a loan offer — final
-                      KYC and disbursement remain the lender’s responsibility.
-                      Verification {reportId}. Sample inflow {formatUsdc(totals.totalIn)}{" "}
-                      · outflow {formatUsdc(totals.totalOut)}.
+                      This summary is based on payments we could see in your
+                      wallet. It is not a final loan offer. A lender still
+                      confirms who you are before sending money. Reference{" "}
+                      {reportId}. Money in {formatUsdc(totals.totalIn)} · money
+                      out {formatUsdc(totals.totalOut)}.
                     </p>
                   </div>
                 </div>
@@ -589,7 +592,7 @@ export function MainScreen({
                     onClick={onPrint}
                     className="font-heading flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-[#0F2340] bg-white py-3 text-[12.5px] font-bold text-[#0F2340]"
                   >
-                    <Printer size={14} /> Print / PDF
+                    <Printer size={14} /> Print
                   </button>
                 </div>
               </>
@@ -604,8 +607,8 @@ export function MainScreen({
         {(
           [
             { id: "portfolio", icon: Wallet, label: "Overview" },
-            { id: "agent", icon: Sparkles, label: "Agent" },
-            { id: "report", icon: BadgeCheck, label: "Report" },
+            { id: "agent", icon: Sparkles, label: "Review" },
+            { id: "report", icon: BadgeCheck, label: "Documents" },
           ] as const
         ).map((item) => (
           <button
@@ -642,18 +645,18 @@ export function MainScreen({
             <>
               <SheetHeader>
                 <SheetTitle>
-                  {selectedTx.asset} transfer
+                  {selectedTx.direction === "in" ? "Money in" : "Money out"}
                 </SheetTitle>
               </SheetHeader>
               <div className="space-y-2 px-4 pb-6 text-[13px]">
                 <p>
-                  From{" "}
+                  Sent from{" "}
                   <span className="font-mono">
                     {shortenAddress(selectedTx.from)}
                   </span>
                 </p>
                 <p>
-                  To{" "}
+                  Sent to{" "}
                   <span className="font-mono">
                     {shortenAddress(selectedTx.to)}
                   </span>
@@ -668,23 +671,16 @@ export function MainScreen({
                   )}
                 </p>
                 <p>
-                  Time {formatIsoDate(selectedTx.timestamp)}
-                </p>
-                <p className="font-mono break-all text-[12px]">
-                  {selectedTx.hash}
+                  When {formatIsoDate(selectedTx.timestamp)}
                 </p>
                 <p className="font-medium text-mint-deep">
-                  ✓ Blockchain Verified
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Network Avalanche. Explorer link is a placeholder until live
-                  hashes are wired.
+                  ✓ Confirmed payment
                 </p>
                 <a
                   href={explorerTxUrl(selectedTx.hash)}
                   className="text-[12px] font-semibold underline"
                 >
-                  View on Avalanche Explorer
+                  View payment details
                 </a>
               </div>
             </>

@@ -20,10 +20,10 @@ export function BundlingScreen({
           <Orb spinning={pct < 100} size={128} />
         </div>
         <div className="font-heading mt-6 text-2xl font-bold">
-          Analyzing your wallet
+          Reviewing your payments
         </div>
         <div className="mb-6 mt-2 text-sm text-muted-foreground">
-          Reading verified Avalanche records into a credit signal
+          This takes a moment. We only look at your payment history.
         </div>
         <div className="mb-6 h-2 w-full rounded bg-hairline">
           <div

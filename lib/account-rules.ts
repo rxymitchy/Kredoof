@@ -7,6 +7,32 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_PATTERN.test(email.trim().toLowerCase());
 }
 
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** Digits only, Kenyan 07xxxxxxxx becomes 2547xxxxxxxx. */
+export function normalizePhone(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 10) {
+    digits = `254${digits.slice(1)}`;
+  }
+  if (digits.startsWith("2540") && digits.length === 13) {
+    digits = `254${digits.slice(4)}`;
+  }
+  return digits;
+}
+
+export function isValidPhone(raw: string): boolean {
+  const digits = normalizePhone(raw);
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+export function looksLikeEmail(raw: string): boolean {
+  return raw.trim().includes("@");
+}
+
 export function isValidName(value: string): boolean {
   return NAME_PATTERN.test(value.trim());
 }
@@ -22,6 +48,22 @@ export function emailHint(email: string): string | null {
     return "Use an address like you@gmail.com";
   }
   return null;
+}
+
+export function phoneHint(phone: string): string | null {
+  const value = phone.trim();
+  if (!value) return "Enter your phone number";
+  if (!isValidPhone(value)) {
+    return "Use a mobile number like 0712 345 678";
+  }
+  return null;
+}
+
+export function identifierHint(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return "Enter your email or phone number";
+  if (looksLikeEmail(trimmed)) return emailHint(trimmed);
+  return phoneHint(trimmed);
 }
 
 export function passwordHint(password: string): string | null {
@@ -44,27 +86,23 @@ export function validateSignup(input: {
   firstName: string;
   lastName: string;
   email: string;
+  phone: string;
   password: string;
 }): string | null {
   return (
     nameHint(input.firstName, "first name") ??
     nameHint(input.lastName, "last name") ??
     emailHint(input.email) ??
+    phoneHint(input.phone) ??
     passwordHint(input.password)
   );
 }
 
 export function validateLogin(input: {
-  email: string;
+  identifier: string;
   password: string;
 }): string | null {
-  if (!isValidEmail(input.email)) {
-    return "Enter the email you signed up with";
-  }
-  if (!input.password) {
-    return "Enter your password";
-  }
-  return null;
+  return identifierHint(input.identifier) ?? (input.password ? null : "Enter your password");
 }
 
 export function displayName(firstName: string, lastName: string): string {

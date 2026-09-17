@@ -1,12 +1,14 @@
 "use client";
 
-import { Lock, Mail, User } from "lucide-react";
+import { Lock, Mail, Phone, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PrimaryButton } from "@/components/mobile/ui";
 import {
   emailHint,
+  identifierHint,
   nameHint,
   passwordHint,
+  phoneHint,
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
@@ -27,12 +29,17 @@ export function AuthForm({
 }) {
   const [mode, setAuthMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [serverEmailError, setServerEmailError] = useState<string | null>(
+    null
+  );
+  const [serverPhoneError, setServerPhoneError] = useState<string | null>(
     null
   );
   const [serverPasswordError, setServerPasswordError] = useState<
@@ -54,6 +61,11 @@ export function AuthForm({
     : null;
   const emailError =
     serverEmailError ?? (touched.email ? emailHint(email) : null);
+  const phoneError =
+    serverPhoneError ?? (touched.phone ? phoneHint(phone) : null);
+  const identifierError =
+    serverEmailError ??
+    (touched.identifier ? identifierHint(identifier) : null);
   const passwordError =
     serverPasswordError ?? (touched.password ? passwordHint(password) : null);
   const confirmError =
@@ -70,6 +82,7 @@ export function AuthForm({
     setError(null);
     setServerEmailError(null);
     setServerPasswordError(null);
+    setServerPhoneError(null);
     setNotice(null);
     setTouched({});
     setPassword("");
@@ -81,20 +94,23 @@ export function AuthForm({
       firstName: true,
       lastName: true,
       email: true,
+      phone: true,
+      identifier: true,
       password: true,
       confirm: true,
     });
     setError(null);
     setServerEmailError(null);
     setServerPasswordError(null);
+    setServerPhoneError(null);
     if (mode === "forgot") {
-      const invalid = emailHint(email);
+      const invalid = identifierHint(identifier);
       if (invalid) return;
       setBusy(true);
       const res = await fetch("/api/auth/forgot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ identifier }),
       });
       setBusy(false);
       if (!res.ok) {
@@ -103,7 +119,7 @@ export function AuthForm({
         return;
       }
       setNotice(
-        "If that email has an account, we sent a reset link. Check your inbox."
+        "If that account exists, we emailed a reset link. Check your inbox."
       );
       return;
     }
@@ -133,8 +149,8 @@ export function AuthForm({
     }
     const localError =
       mode === "signup"
-        ? validateSignup({ firstName, lastName, email, password })
-        : validateLogin({ email, password });
+        ? validateSignup({ firstName, lastName, email, phone, password })
+        : validateLogin({ identifier, password });
     if (localError) {
       return;
     }
@@ -143,7 +159,14 @@ export function AuthForm({
     const res = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, firstName, lastName }),
+      body: JSON.stringify({
+        email,
+        phone,
+        identifier,
+        password,
+        firstName,
+        lastName,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
@@ -154,6 +177,8 @@ export function AuthForm({
           : data.error ?? "Could not save that account";
       if (mode === "signin" && data.field === "password") {
         setServerPasswordError(message);
+      } else if (data.field === "phone") {
+        setServerPhoneError(message);
       } else if (data.field === "email" || /already exists/i.test(message)) {
         setServerEmailError(message);
       } else {
@@ -217,7 +242,7 @@ export function AuthForm({
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "reset"
               ? "Use at least 8 characters."
-              : "We’ll email a reset link if that address has an account."}
+              : "We’ll email a reset link if that email or phone has an account."}
           </p>
         </div>
       )}
@@ -269,7 +294,7 @@ export function AuthForm({
           </div>
         </div>
       ) : null}
-      {mode !== "reset" ? (
+      {mode === "signup" ? (
         <div className="mb-3">
           <label
             className={cn(
@@ -295,6 +320,62 @@ export function AuthForm({
           </label>
           {emailError ? (
             <p className="mt-1 text-xs text-[#C24545]">{emailError}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {mode === "signup" ? (
+        <div className="mb-3">
+          <label
+            className={cn(
+              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              phoneError ? "border-[#C24545]" : "border-hairline"
+            )}
+          >
+            <Phone size={16} className="text-[#a9b0a2]" />
+            <input
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                setServerPhoneError(null);
+              }}
+              onBlur={() => mark("phone")}
+              placeholder="0712 345 678"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              required
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </label>
+          {phoneError ? (
+            <p className="mt-1 text-xs text-[#C24545]">{phoneError}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {mode === "signin" || mode === "forgot" ? (
+        <div className="mb-3">
+          <label
+            className={cn(
+              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              identifierError ? "border-[#C24545]" : "border-hairline"
+            )}
+          >
+            <Mail size={16} className="text-[#a9b0a2]" />
+            <input
+              value={identifier}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                setServerEmailError(null);
+              }}
+              onBlur={() => mark("identifier")}
+              placeholder="Email or phone number"
+              autoComplete="username"
+              required
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </label>
+          {identifierError ? (
+            <p className="mt-1 text-xs text-[#C24545]">{identifierError}</p>
           ) : null}
         </div>
       ) : null}

@@ -1,17 +1,22 @@
 import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { list, put } from "@vercel/blob";
+import { get, put } from "@vercel/blob";
 import {
   displayName,
-  emailHint,
+  identifierHint,
+  looksLikeEmail,
+  normalizeEmail,
+  normalizePhone,
   passwordHint,
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
 
 export type StoredUser = {
+  id: string;
   email: string;
+  phone: string;
   passwordHash: string;
   firstName: string;
   lastName: string;
@@ -36,11 +41,10 @@ export type StoredLoan = {
   created_at: number;
 };
 
-const LEGACY_USERS_PATH = "kredoof-users.json";
-const LOANS_PATH = "kredoof-loans.json";
-const USER_PREFIX = "kredoof-accounts/";
-const VERIFY_PREFIX = "kredoof-verify/";
-const RESET_PREFIX = "kredoof-reset/";
+const STORE = "kredoof-v2";
+const LOANS_PATH = `${STORE}/loans.json`;
+const VERIFY_PREFIX = `${STORE}/verify/`;
+const RESET_PREFIX = `${STORE}/reset/`;
 
 function hashPassword(password: string): string {
   return pbkdf2Sync(password, "kredoof-v1", 120_000, 32, "sha256").toString(
@@ -52,12 +56,20 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
+function newId(): string {
+  return randomBytes(16).toString("hex");
 }
 
-function userObjectPath(email: string): string {
-  return `${USER_PREFIX}${hashToken(normalizeEmail(email))}.json`;
+function userPath(id: string): string {
+  return `${STORE}/users/${id}.json`;
+}
+
+function emailIndexPath(email: string): string {
+  return `${STORE}/email/${hashToken(normalizeEmail(email))}.json`;
+}
+
+function phoneIndexPath(phone: string): string {
+  return `${STORE}/phone/${hashToken(normalizePhone(phone))}.json`;
 }
 
 function verifyObjectPath(tokenHash: string): string {
@@ -82,18 +94,24 @@ function blobEnabled(): boolean {
 }
 
 export class LoginError extends Error {
-  readonly field: "email" | "password";
-  constructor(field: "email" | "password", message: string) {
+  readonly field: "email" | "password" | "phone";
+  constructor(field: "email" | "password" | "phone", message: string) {
     super(message);
     this.name = "LoginError";
     this.field = field;
   }
 }
 
-export class DuplicateEmailError extends Error {
-  constructor() {
-    super("An account with that email already exists");
-    this.name = "DuplicateEmailError";
+export class DuplicateAccountError extends Error {
+  readonly field: "email" | "phone";
+  constructor(field: "email" | "phone") {
+    super(
+      field === "phone"
+        ? "An account with that phone number already exists"
+        : "An account with that email already exists"
+    );
+    this.name = "DuplicateAccountError";
+    this.field = field;
   }
 }
 
@@ -110,7 +128,9 @@ function normalizeUser(raw: StoredUser): StoredUser {
     raw.lastName?.trim() || raw.name?.split(" ").slice(1).join(" ") || "";
   return {
     ...raw,
+    id: raw.id,
     email: normalizeEmail(raw.email),
+    phone: raw.phone ? normalizePhone(raw.phone) : "",
     firstName,
     lastName,
     name: raw.name || displayName(firstName, lastName),
@@ -118,7 +138,7 @@ function normalizeUser(raw: StoredUser): StoredUser {
 }
 
 function isAlreadyExistsError(error: unknown): boolean {
-  if (error instanceof DuplicateEmailError) return true;
+  if (error instanceof DuplicateAccountError) return true;
   const code =
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
@@ -134,17 +154,18 @@ function isAlreadyExistsError(error: unknown): boolean {
 
 async function readObject<T>(pathname: string): Promise<T | null> {
   if (blobEnabled()) {
-    const { blobs } = await list({
-      prefix: pathname,
-      limit: 20,
-      abortSignal: AbortSignal.timeout(8000),
-    });
-    const hit = blobs.find((b) => b.pathname === pathname) ?? blobs[0];
-    if (hit?.url) {
-      const res = await fetch(hit.url, { cache: "no-store" });
-      if (res.ok) return (await res.json()) as T;
+    try {
+      const result = await get(pathname, {
+        access: "private",
+        useCache: false,
+        abortSignal: AbortSignal.timeout(8000),
+      });
+      if (!result || result.statusCode !== 200 || !result.stream) return null;
+      const text = await new Response(result.stream).text();
+      return JSON.parse(text) as T;
+    } catch {
+      return null;
     }
-    return null;
   }
   try {
     const buf = await readFile(localFile(pathname), "utf8");
@@ -188,11 +209,10 @@ async function writeJson(pathname: string, data: unknown): Promise<void> {
   await writeObject(pathname, data, "update");
 }
 
-async function readLegacyUser(email: string): Promise<StoredUser | null> {
-  const users = (await readJson<StoredUser[]>(LEGACY_USERS_PATH, [])).map(
-    normalizeUser
-  );
-  return users.find((u) => u.email === email) ?? null;
+async function getUserById(id: string): Promise<StoredUser | null> {
+  if (!id) return null;
+  const stored = await readObject<StoredUser>(userPath(id));
+  return stored ? normalizeUser(stored) : null;
 }
 
 export async function getUserByEmail(
@@ -200,32 +220,43 @@ export async function getUserByEmail(
 ): Promise<StoredUser | null> {
   const email = normalizeEmail(emailRaw);
   if (!email) return null;
-  const stored = await readObject<StoredUser>(userObjectPath(email));
-  if (stored) return normalizeUser(stored);
-  const legacy = await readLegacyUser(email);
-  if (!legacy) return null;
-  await writeObject(userObjectPath(email), legacy, "update").catch(() => null);
-  return legacy;
+  const index = await readObject<{ id?: string }>(emailIndexPath(email));
+  if (!index?.id) return null;
+  return getUserById(index.id);
+}
+
+export async function getUserByPhone(
+  phoneRaw: string
+): Promise<StoredUser | null> {
+  const phone = normalizePhone(phoneRaw);
+  if (!phone) return null;
+  const index = await readObject<{ id?: string }>(phoneIndexPath(phone));
+  if (!index?.id) return null;
+  return getUserById(index.id);
+}
+
+export async function getUserByIdentifier(
+  raw: string
+): Promise<StoredUser | null> {
+  const value = raw.trim();
+  if (!value) return null;
+  if (looksLikeEmail(value)) return getUserByEmail(value);
+  return getUserByPhone(value);
 }
 
 async function saveUser(user: StoredUser, mode: "create" | "update") {
-  try {
-    await writeObject(userObjectPath(user.email), user, mode);
-  } catch (error) {
-    if (mode === "create" && isAlreadyExistsError(error)) {
-      throw new DuplicateEmailError();
-    }
-    throw error;
-  }
+  await writeObject(userPath(user.id), user, mode);
 }
 
 export async function registerUser(input: {
   email: string;
+  phone: string;
   password: string;
   firstName: string;
   lastName: string;
 }): Promise<{
   email: string;
+  phone: string;
   name: string;
   firstName: string;
   lastName: string;
@@ -234,15 +265,18 @@ export async function registerUser(input: {
   const error = validateSignup(input);
   if (error) throw new Error(error);
   const email = normalizeEmail(input.email);
+  const phone = normalizePhone(input.phone);
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const name = displayName(firstName, lastName);
-  if (await getUserByEmail(email)) {
-    throw new DuplicateEmailError();
-  }
+  if (await getUserByEmail(email)) throw new DuplicateAccountError("email");
+  if (await getUserByPhone(phone)) throw new DuplicateAccountError("phone");
+  const id = newId();
   const verify = newToken(24);
   const user: StoredUser = {
+    id,
     email,
+    phone,
     passwordHash: hashPassword(input.password),
     firstName,
     lastName,
@@ -255,33 +289,49 @@ export async function registerUser(input: {
     resetTokenExpires: null,
     createdAt: Date.now(),
   };
-  await saveUser(user, "create");
+  try {
+    await writeObject(emailIndexPath(email), { id }, "create");
+  } catch (error) {
+    if (isAlreadyExistsError(error)) throw new DuplicateAccountError("email");
+    throw error;
+  }
+  try {
+    await writeObject(phoneIndexPath(phone), { id }, "create");
+  } catch (error) {
+    if (isAlreadyExistsError(error)) throw new DuplicateAccountError("phone");
+    throw error;
+  }
+  await saveUser(user, "update");
   await writeObject(
     verifyObjectPath(verify.hash),
-    { email, expires: verify.expires },
+    { id, email, expires: verify.expires },
     "update"
   ).catch(() => null);
-  return { email, name, firstName, lastName, verifyToken: verify.token };
+  return { email, phone, name, firstName, lastName, verifyToken: verify.token };
 }
 
 export async function loginUser(
-  emailRaw: string,
+  identifierRaw: string,
   password: string
 ): Promise<{
   email: string;
+  phone: string;
   name: string;
   firstName: string;
   lastName: string;
   wallet?: string | null;
 }> {
-  const error = validateLogin({ email: emailRaw, password });
-  if (error) throw new LoginError("email", error);
-  const email = normalizeEmail(emailRaw);
-  const user = await getUserByEmail(email);
+  const error = validateLogin({ identifier: identifierRaw, password });
+  if (error) {
+    throw new LoginError(looksLikeEmail(identifierRaw) ? "email" : "phone", error);
+  }
+  const user = await getUserByIdentifier(identifierRaw);
   if (!user) {
     throw new LoginError(
-      "email",
-      "No account for that email. Sign up first."
+      looksLikeEmail(identifierRaw) ? "email" : "phone",
+      looksLikeEmail(identifierRaw)
+        ? "No account for that email. Sign up first."
+        : "No account for that phone number. Sign up first."
     );
   }
   const actual = hashPassword(password);
@@ -292,6 +342,7 @@ export async function loginUser(
   }
   return {
     email: user.email,
+    phone: user.phone,
     name: user.name,
     firstName: user.firstName,
     lastName: user.lastName,
@@ -301,6 +352,7 @@ export async function loginUser(
 
 export async function confirmEmailToken(tokenRaw: string): Promise<{
   email: string;
+  phone: string;
   name: string;
   firstName: string;
   lastName: string;
@@ -308,13 +360,16 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
   const token = tokenRaw.trim();
   if (!token) throw new Error("Missing confirmation link");
   const hash = hashToken(token);
-  const lookup = await readObject<{ email?: string; expires?: number }>(
-    verifyObjectPath(hash)
-  );
-  const email = lookup?.email ? normalizeEmail(lookup.email) : "";
-  const user = email
-    ? await getUserByEmail(email)
-    : null;
+  const lookup = await readObject<{
+    id?: string;
+    email?: string;
+    expires?: number;
+  }>(verifyObjectPath(hash));
+  const user = lookup?.id
+    ? await getUserById(lookup.id)
+    : lookup?.email
+      ? await getUserByEmail(lookup.email)
+      : null;
   if (!user || user.verifyTokenHash !== hash) {
     throw new Error("This confirmation link is invalid");
   }
@@ -330,20 +385,20 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
   await saveUser(user, "update");
   return {
     email: user.email,
+    phone: user.phone,
     name: user.name,
     firstName: user.firstName,
     lastName: user.lastName,
   };
 }
 
-export async function requestPasswordReset(emailRaw: string): Promise<{
+export async function requestPasswordReset(identifierRaw: string): Promise<{
   email: string;
   name: string;
   resetToken: string;
 } | null> {
-  const email = normalizeEmail(emailRaw);
-  if (emailHint(email)) return null;
-  const user = await getUserByEmail(email);
+  if (identifierHint(identifierRaw)) return null;
+  const user = await getUserByIdentifier(identifierRaw);
   if (!user) return null;
   const reset = newToken(1);
   user.resetTokenHash = reset.hash;
@@ -351,7 +406,7 @@ export async function requestPasswordReset(emailRaw: string): Promise<{
   await saveUser(user, "update");
   await writeObject(
     resetObjectPath(reset.hash),
-    { email, expires: reset.expires },
+    { id: user.id, email: user.email, expires: reset.expires },
     "update"
   ).catch(() => null);
   return { email: user.email, name: user.name, resetToken: reset.token };
@@ -366,11 +421,16 @@ export async function resetPasswordWithToken(
   const token = tokenRaw.trim();
   if (!token) throw new Error("Missing reset link");
   const hash = hashToken(token);
-  const lookup = await readObject<{ email?: string; expires?: number }>(
-    resetObjectPath(hash)
-  );
-  const email = lookup?.email ? normalizeEmail(lookup.email) : "";
-  const user = email ? await getUserByEmail(email) : null;
+  const lookup = await readObject<{
+    id?: string;
+    email?: string;
+    expires?: number;
+  }>(resetObjectPath(hash));
+  const user = lookup?.id
+    ? await getUserById(lookup.id)
+    : lookup?.email
+      ? await getUserByEmail(lookup.email)
+      : null;
   if (!user || user.resetTokenHash !== hash) {
     throw new Error("This reset link is invalid");
   }
@@ -386,13 +446,13 @@ export async function resetPasswordWithToken(
 }
 
 export async function bindUserWallet(emailRaw: string, wallet: string) {
-  const email = normalizeEmail(emailRaw);
-  const user = await getUserByEmail(email);
+  const user = await getUserByEmail(emailRaw);
   if (!user) throw new Error("Unknown account");
   user.wallet = wallet.toLowerCase();
   await saveUser(user, "update");
   return {
     email: user.email,
+    phone: user.phone,
     name: user.name,
     firstName: user.firstName,
     lastName: user.lastName,

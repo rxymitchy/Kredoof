@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { sendRegistrationEmail } from "@/lib/mail";
-import { DuplicateEmailError, registerUser } from "@/lib/persist";
+import { DuplicateAccountError, registerUser } from "@/lib/persist";
 import { apiOrigin, appOrigin } from "@/lib/session";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     email?: string;
+    phone?: string;
     password?: string;
     firstName?: string;
     lastName?: string;
@@ -14,14 +15,22 @@ export async function POST(request: Request) {
   const firstName = body.firstName?.trim() ?? "";
   const lastName = body.lastName?.trim() ?? "";
   const email = body.email ?? "";
+  const phone = body.phone ?? "";
   const password = body.password ?? "";
   try {
-    const data = await registerUser({ email, password, firstName, lastName });
+    const data = await registerUser({
+      email,
+      phone,
+      password,
+      firstName,
+      lastName,
+    });
     await fetch(`${apiOrigin()}/api/accounts/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: data.email,
+        phone: data.phone,
         password,
         name: data.name,
         first_name: data.firstName,
@@ -37,17 +46,18 @@ export async function POST(request: Request) {
     }).catch(() => false);
     return NextResponse.json({
       email: data.email,
+      phone: data.phone,
       name: data.name,
       firstName: data.firstName,
       lastName: data.lastName,
       emailSent,
     });
   } catch (error) {
-    const duplicate = error instanceof DuplicateEmailError;
+    const duplicate = error instanceof DuplicateAccountError;
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Could not create account",
-        field: duplicate ? "email" : undefined,
+        field: duplicate ? error.field : undefined,
       },
       { status: duplicate ? 409 : 400 }
     );

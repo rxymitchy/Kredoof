@@ -44,20 +44,20 @@ export function LoanPanel({
     });
     const data = await res.json();
     if (!res.ok) {
-      setStatus(data.error ?? "Could not send USDC from the treasury");
+      setStatus(data.error ?? "We could not send the loan right now.");
       return;
     }
     setHash(data.hash);
-    setStatus("Loan USDC sent from the Kredoof treasury.");
+    setStatus("The loan money is on its way to your wallet.");
   }
 
   async function repay() {
     if (!treasury) {
-      setStatus("Set NEXT_PUBLIC_TREASURY_ADDRESS to repay on-chain.");
+      setStatus("Repay is not set up yet.");
       return;
     }
     if (!address) {
-      setStatus("Connect the same wallet that was underwritten.");
+      setStatus("Connect the same wallet you used for the review.");
       return;
     }
     setStatus(null);
@@ -68,29 +68,28 @@ export function LoanPanel({
       args: [treasury, parseUnits(amount.toFixed(6), 6)],
     });
     setHash(tx);
-    setStatus("Repayment sent on Avalanche.");
+    setStatus("Your repayment has been sent.");
   }
 
   if (!eligible || amount <= 0) {
     return (
       <p className="mt-4 text-sm text-muted-foreground">
-        This wallet is not eligible to draw a USDC loan from the current policy.
+        This wallet does not qualify for a loan right now.
       </p>
     );
   }
 
   return (
     <div className="mt-4 rounded-2xl border border-hairline bg-[#FAFBF9] p-4 text-left">
-      <div className="font-heading text-sm font-bold">USDC loan</div>
+      <div className="font-heading text-sm font-bold">Your loan</div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Draw sends USDC from the Kredoof treasury ({treasury.slice(0, 6)}…
-        {treasury.slice(-4)}) on Avalanche. Fund that address with USDC for
-        draws to succeed. Repay sends USDC from your wallet back to it.
+        You can take up to {amount} in your wallet. We send the money to you.
+        When you are ready, send the same amount back.
       </p>
-      <div className="mt-3 text-sm font-semibold">{amount} USDC line</div>
+      <div className="mt-3 text-sm font-semibold">Up to {amount}</div>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <PrimaryButton onClick={draw} disabled={isPending || !address}>
-          Draw loan
+          Get the loan
         </PrimaryButton>
         <button
           type="button"
@@ -98,7 +97,7 @@ export function LoanPanel({
           disabled={isPending || !address}
           className="font-heading rounded-2xl border border-hairline px-4 py-3 text-sm font-bold"
         >
-          Repay in USDC
+          Pay it back
         </button>
       </div>
       {status ? (
@@ -106,12 +105,12 @@ export function LoanPanel({
       ) : null}
       {hash ? (
         <a
-          className="mt-2 inline-block font-mono text-[11px] text-mint-deep"
+          className="mt-2 inline-block text-[11px] font-semibold text-mint-deep"
           href={explorerTxUrl(hash)}
           target="_blank"
           rel="noreferrer"
         >
-          View on Snowtrace
+          See this payment
         </a>
       ) : null}
     </div>
