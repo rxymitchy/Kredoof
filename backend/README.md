@@ -24,11 +24,15 @@ http://127.0.0.1:8471/docs for the interactive API docs. (The demo dashboard
 is a development tool for inspecting the engine — the real UI is the React
 frontend.)
 
+This folder already lives in the main Kredoof repo. Production is
+https://backend-sigma-silk-84.vercel.app (`app.py` is the Vercel entrypoint).
+
 ## Connecting the React frontend
 
 CORS allows localhost and `*.vercel.app`. The Next.js app should call:
 
 - `GET  /api/kredoof/profile` — frontend-shaped payload (applicant, txs, score, risk, report)
+- `POST /api/kredoof/profile` — same payload from submitted live transfers
 - `GET  /api/health` — liveness
 - `GET  /api/demo-wallets` — list the six synthetic demo wallets
 - `GET  /api/score/{wallet_id}?engine=ml|heuristic` — raw engine score
@@ -36,15 +40,12 @@ CORS allows localhost and `*.vercel.app`. The Next.js app should call:
 - `GET  /api/model-card` — training metrics and model coefficients
 
 Set `NEXT_PUBLIC_API_URL` on the frontend to this server's origin. If the
-API is down, the UI falls back to mock data so Vercel keeps working.
+API is down, the UI falls back to the sample (mock) profile.
 
-## Adding this to the main repo
-
-Copy this whole `backend/` folder into the root of the existing Kredoof
-repository, next to the frontend. It brings its own README (this file) and
-touches nothing outside its folder. The `artifacts/` directory (trained
-model) is generated locally by `python -m kredoof.train` and is
-git-ignored, so each environment trains its own copy.
+The `artifacts/` directory (trained model) is generated locally by
+`python -m kredoof.train` and is git-ignored, so each environment trains
+its own copy. You can also `pip install -r requirements.txt` (same pins as
+`pyproject.toml`).
 
 ## What's inside
 
