@@ -8,8 +8,22 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { avalanche } from "viem/chains";
 import { USDC_AVALANCHE } from "@/lib/constants";
-import { newLoanId, recordLoan, updateLoan } from "@/lib/persist";
+import {
+  hasOpenLoan,
+  hasRepaidLoan,
+  getUserByEmail,
+  newLoanId,
+  recordLoan,
+  updateLoan,
+} from "@/lib/persist";
 import { apiOrigin, getSession } from "@/lib/session";
+import {
+  DAILY_INTEREST_RATE,
+  LONG_TERM_DAYS,
+  SHORT_TERM_DAYS,
+  allowsLongTerm,
+  repaymentDue,
+} from "@/lib/loan-terms";
 
 const ERC20_TRANSFER = [
   {
@@ -39,6 +53,7 @@ export async function POST(request: Request) {
     to?: `0x${string}`;
     amountUsdc?: number;
     email?: string;
+    termDays?: number;
   };
   if (!body.to || !body.amountUsdc || body.amountUsdc <= 0) {
     return NextResponse.json({ error: "Invalid draw request" }, { status: 400 });
@@ -47,6 +62,36 @@ export async function POST(request: Request) {
   if (session.wallet && session.wallet !== body.to.toLowerCase()) {
     return NextResponse.json({ error: "Wallet mismatch" }, { status: 403 });
   }
+  if (
+    await hasOpenLoan({
+      email: session.email ?? body.email,
+      wallet: body.to,
+    })
+  ) {
+    return NextResponse.json(
+      { error: "Pay your current loan first." },
+      { status: 409 }
+    );
+  }
+  const termDays =
+    body.termDays === LONG_TERM_DAYS ? LONG_TERM_DAYS : SHORT_TERM_DAYS;
+  if (termDays === LONG_TERM_DAYS) {
+    const user = session.email ? await getUserByEmail(session.email) : null;
+    const repaid = await hasRepaidLoan({
+      email: session.email ?? body.email,
+      wallet: body.to,
+    });
+    if (!allowsLongTerm(user?.lastScore ?? 0, repaid)) {
+      return NextResponse.json(
+        {
+          error:
+            "The 30-day option opens after a stronger score or after you pay a loan on time.",
+        },
+        { status: 403 }
+      );
+    }
+  }
+  const repayAmount = repaymentDue(body.amountUsdc, termDays);
   const pk = (key.startsWith("0x") ? key : `0x${key}`) as Hex;
   const account = privateKeyToAccount(pk);
   const client = createWalletClient({
@@ -65,6 +110,10 @@ export async function POST(request: Request) {
       id: newLoanId(),
       wallet: body.to.toLowerCase(),
       amount_usdc: body.amountUsdc,
+      repay_usdc: repayAmount,
+      term_days: termDays,
+      daily_rate: DAILY_INTEREST_RATE,
+      due_at: Date.now() + termDays * 24 * 60 * 60 * 1000,
       status: "drawn",
       disburse_tx: hash,
       created_at: Date.now(),

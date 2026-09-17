@@ -26,9 +26,20 @@ export async function POST(request: Request) {
   if (!ok) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
-  session.wallet = body.address.toLowerCase();
-  session.nonce = undefined;
   const email = body.email?.toLowerCase() || session.email;
+  const nextWallet = body.address.toLowerCase();
+  if (email) {
+    const { hasOpenLoan } = await import("@/lib/persist");
+    const open = await hasOpenLoan({ email, wallet: session.wallet });
+    if (open && session.wallet && session.wallet !== nextWallet) {
+      return NextResponse.json(
+        { error: "Pay your loan first, then you can change wallets." },
+        { status: 409 }
+      );
+    }
+  }
+  session.wallet = nextWallet;
+  session.nonce = undefined;
   if (email) session.email = email;
   await establishSession({
     email,

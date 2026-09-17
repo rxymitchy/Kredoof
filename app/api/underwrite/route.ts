@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchAvalancheStableTransfers, toScoreRows } from "@/lib/avalanche";
+import { fetchAvalancheStableTransfers, confirmTransfersOnChain, toScoreRows } from "@/lib/avalanche";
+import { setUserLastScore } from "@/lib/persist";
 import { apiOrigin, getSession } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -8,13 +9,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Wallet required" }, { status: 400 });
   }
   const session = await getSession();
-  const txs = await fetchAvalancheStableTransfers(body.address);
+  const listed = await fetchAvalancheStableTransfers(body.address);
+  if (listed.length === 0) {
+    return NextResponse.json(
+      {
+        error: "We did not find payments in this wallet yet.",
+        items: [],
+      },
+      { status: 422 }
+    );
+  }
+  let txs;
+  try {
+    txs = await confirmTransfersOnChain(listed);
+  } catch {
+    return NextResponse.json(
+      {
+        error: "We could not check those payments on the chain. Try again.",
+        items: listed,
+      },
+      { status: 502 }
+    );
+  }
   if (txs.length === 0) {
     return NextResponse.json(
       {
         error:
-          "We did not find payments in this wallet yet.",
-        items: [],
+          "We found payment records, but none of them exist on the chain yet.",
+        items: listed,
       },
       { status: 422 }
     );
@@ -38,6 +60,10 @@ export async function POST(request: Request) {
       { error: profile.detail ?? "We could not finish the review.", items: txs },
       { status: res.status }
     );
+  }
+  const score = Number(profile?.decision?.score);
+  if (session.email && Number.isFinite(score)) {
+    await setUserLastScore(session.email, score).catch(() => null);
   }
   return NextResponse.json({ ...profile, liveTransactions: txs });
 }

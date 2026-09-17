@@ -68,13 +68,77 @@ export async function fetchAvalancheStableTransfers(
         amount: toAmount(row.value, decimals),
         direction,
         network: "Avalanche",
-        verificationStatus: "verified",
+        verificationStatus: "unverified",
       });
     }
     pageToken = body.nextPageToken;
     if (!pageToken) break;
   }
   return items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+const AVALANCHE_RPC = "https://api.avax.network/ext/bc/C/rpc";
+
+type RpcReceipt = {
+  id?: number;
+  result?: { status?: string; transactionHash?: string } | null;
+};
+
+export async function confirmTransfersOnChain(
+  txs: OnChainTransaction[]
+): Promise<OnChainTransaction[]> {
+  if (txs.length === 0) return [];
+  const confirmed: OnChainTransaction[] = [];
+  for (let i = 0; i < txs.length; i += 20) {
+    const chunk = txs.slice(i, i + 20);
+    const payload = chunk.map((tx, index) => ({
+      jsonrpc: "2.0",
+      id: index,
+      method: "eth_getTransactionReceipt",
+      params: [tx.hash],
+    }));
+    const res = await fetch(AVALANCHE_RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error("Could not check those payments on the chain");
+    }
+    const raw = await res.json();
+    const rows: RpcReceipt[] = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === "object"
+        ? chunk.map((tx, index) => ({ id: index, result: null }))
+        : [];
+    if (!Array.isArray(raw)) {
+      for (let index = 0; index < chunk.length; index++) {
+        const single = await fetch(AVALANCHE_RPC, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_getTransactionReceipt",
+            params: [chunk[index].hash],
+          }),
+        });
+        const one = (await single.json()) as RpcReceipt;
+        if (one.result && one.result.status === "0x1") {
+          confirmed.push({ ...chunk[index], verificationStatus: "verified" });
+        }
+      }
+      continue;
+    }
+    const byId = new Map(rows.map((row) => [row.id ?? 0, row]));
+    chunk.forEach((tx, index) => {
+      const receipt = byId.get(index)?.result;
+      if (receipt && receipt.status === "0x1") {
+        confirmed.push({ ...tx, verificationStatus: "verified" });
+      }
+    });
+  }
+  return confirmed;
 }
 
 export function toScoreRows(_address: string, txs: OnChainTransaction[]) {

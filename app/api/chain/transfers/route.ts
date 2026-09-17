@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchAvalancheStableTransfers } from "@/lib/avalanche";
+import { confirmTransfersOnChain, fetchAvalancheStableTransfers } from "@/lib/avalanche";
 
 export async function GET(request: Request) {
   const address = new URL(request.url).searchParams.get("address");
@@ -7,7 +7,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Wallet address required" }, { status: 400 });
   }
   try {
-    const items = await fetchAvalancheStableTransfers(address);
+    const listed = await fetchAvalancheStableTransfers(address);
+    const items = await confirmTransfersOnChain(listed);
     return NextResponse.json({
       items,
       totalCount: items.length,
