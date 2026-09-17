@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { type AuthMode } from "@/components/mobile/auth-form";
 import { AuthScreen } from "@/components/mobile/screens/auth-screen";
 import { BundlingScreen } from "@/components/mobile/screens/bundling-screen";
@@ -17,6 +17,7 @@ import { useTransactions } from "@/hooks/use-transactions";
 import { useUnderwritingProfile } from "@/hooks/use-underwriting-profile";
 import { generateReportHtml, reportIdFor } from "@/lib/report-html";
 import { bandForScore } from "@/lib/loan-bands";
+import { LONG_TERM_MIN_SCORE } from "@/lib/loan-terms";
 import { mockApplicant, mockTransactions } from "@/data";
 import { mockCreditDecision, mockFinancialProfile } from "@/data";
 import type { EngineProfile } from "@/services/engine";
@@ -37,7 +38,7 @@ const AGENT_STEPS = [
   "Collecting your recent payments",
   "Checking amounts and who you paid",
   "Seeing how long you have used this wallet",
-  "Checking if payments look regular and on time",
+  "Checking each payment exists on the chain",
   "Writing a simple result",
 ];
 
@@ -56,6 +57,7 @@ export function KredoofApp({
 }) {
   const router = useRouter();
   const { address } = useAccount();
+  const { disconnect } = useDisconnect();
   const [stage, setStage] = useState<AppStage>(startAt);
   const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
   const [tab, setTab] = useState<MainTab>(initialTab);
@@ -66,6 +68,34 @@ export function KredoofApp({
   const [agentStage, setAgentStage] = useState<AgentStage>("idle");
   const [agentLog, setAgentLog] = useState<string[]>([]);
   const [sessionReady, setSessionReady] = useState(startAt !== "auth");
+  const [hasOpenLoan, setHasOpenLoan] = useState(false);
+  const [allowsLongTerm, setAllowsLongTerm] = useState(false);
+  const [openRepayUsdc, setOpenRepayUsdc] = useState<number | null>(null);
+
+  const refreshLoans = useCallback(() => {
+    fetch("/api/loans/mine")
+      .then((res) => res.json())
+      .then(
+        (data: {
+          hasOpenLoan?: boolean;
+          allowsLongTerm?: boolean;
+          loans?: Array<{ status?: string; repay_usdc?: number }>;
+        }) => {
+          setHasOpenLoan(Boolean(data.hasOpenLoan));
+          setAllowsLongTerm(Boolean(data.allowsLongTerm));
+          const open = (data.loans ?? []).find((loan) => {
+            const status = (loan.status ?? "").toLowerCase();
+            return status === "drawn" || status === "disbursed" || status === "open";
+          });
+          setOpenRepayUsdc(open?.repay_usdc ?? null);
+        }
+      )
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    refreshLoans();
+  }, [refreshLoans, stage, address]);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +292,28 @@ export function KredoofApp({
       reportId={reportId}
       onSignOut={() => {
         void signOut();
+      }}
+      hasOpenLoan={hasOpenLoan}
+      allowsLongTerm={allowsLongTerm || decision.score >= LONG_TERM_MIN_SCORE}
+      openRepayUsdc={openRepayUsdc}
+      onLoanChange={refreshLoans}
+      onDisconnectWallet={() => {
+        if (hasOpenLoan) return;
+        disconnect();
+      }}
+      onDeleteAccount={() => {
+        if (hasOpenLoan) return;
+        if (
+          typeof window !== "undefined" &&
+          !window.confirm("Delete this account? This cannot be undone.")
+        ) {
+          return;
+        }
+        void fetch("/api/account/delete", { method: "POST" }).then(async (res) => {
+          if (!res.ok) return;
+          disconnect();
+          await signOut();
+        });
       }}
     />
   );

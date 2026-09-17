@@ -12,6 +12,7 @@ import {
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
+import { isOpenLoanStatus } from "@/lib/loan-terms";
 
 export type StoredUser = {
   id: string;
@@ -28,6 +29,8 @@ export type StoredUser = {
   resetTokenHash?: string | null;
   resetTokenExpires?: number | null;
   createdAt: number;
+  lastScore?: number | null;
+  deletedAt?: number | null;
 };
 
 export type StoredLoan = {
@@ -35,6 +38,10 @@ export type StoredLoan = {
   email?: string | null;
   wallet: string;
   amount_usdc: number;
+  repay_usdc?: number;
+  term_days?: number;
+  daily_rate?: number;
+  due_at?: number;
   status: string;
   disburse_tx?: string | null;
   repay_tx?: string | null;
@@ -222,7 +229,9 @@ export async function getUserByEmail(
   if (!email) return null;
   const index = await readObject<{ id?: string }>(emailIndexPath(email));
   if (!index?.id) return null;
-  return getUserById(index.id);
+  const user = await getUserById(index.id);
+  if (!user || user.deletedAt) return null;
+  return user;
 }
 
 export async function getUserByPhone(
@@ -232,7 +241,9 @@ export async function getUserByPhone(
   if (!phone) return null;
   const index = await readObject<{ id?: string }>(phoneIndexPath(phone));
   if (!index?.id) return null;
-  return getUserById(index.id);
+  const user = await getUserById(index.id);
+  if (!user || user.deletedAt) return null;
+  return user;
 }
 
 export async function getUserByIdentifier(
@@ -445,10 +456,80 @@ export async function resetPasswordWithToken(
   return { email: user.email, name: user.name };
 }
 
+export async function listLoans(): Promise<StoredLoan[]> {
+  return readJson<StoredLoan[]>(LOANS_PATH, []);
+}
+
+export async function loansForAccount(input: {
+  email?: string | null;
+  wallet?: string | null;
+}): Promise<StoredLoan[]> {
+  const email = input.email ? normalizeEmail(input.email) : "";
+  const wallet = input.wallet?.toLowerCase() ?? "";
+  const loans = await listLoans();
+  return loans.filter((loan) => {
+    const matchEmail = email && loan.email && normalizeEmail(loan.email) === email;
+    const matchWallet = wallet && loan.wallet.toLowerCase() === wallet;
+    return Boolean(matchEmail || matchWallet);
+  });
+}
+
+export async function hasOpenLoan(input: {
+  email?: string | null;
+  wallet?: string | null;
+}): Promise<boolean> {
+  const loans = await loansForAccount(input);
+  return loans.some((loan) => isOpenLoanStatus(loan.status));
+}
+
+export async function hasRepaidLoan(input: {
+  email?: string | null;
+  wallet?: string | null;
+}): Promise<boolean> {
+  const loans = await loansForAccount(input);
+  return loans.some((loan) => (loan.status ?? "").toLowerCase() === "repaid");
+}
+
+export async function setUserLastScore(emailRaw: string, score: number) {
+  const user = await getUserByEmail(emailRaw);
+  if (!user) return null;
+  user.lastScore = score;
+  await saveUser(user, "update");
+  return user;
+}
+
+export async function deleteUserAccount(emailRaw: string): Promise<void> {
+  const user = await getUserByEmail(emailRaw);
+  if (!user) throw new Error("Unknown account");
+  if (await hasOpenLoan({ email: user.email, wallet: user.wallet })) {
+    throw new Error("Pay your loan first, then you can delete this account.");
+  }
+  user.deletedAt = Date.now();
+  user.wallet = null;
+  user.passwordHash = hashPassword(randomBytes(24).toString("hex"));
+  await saveUser(user, "update");
+  await writeObject(emailIndexPath(user.email), { id: "" }, "update").catch(
+    () => null
+  );
+  if (user.phone) {
+    await writeObject(phoneIndexPath(user.phone), { id: "" }, "update").catch(
+      () => null
+    );
+  }
+}
+
 export async function bindUserWallet(emailRaw: string, wallet: string) {
   const user = await getUserByEmail(emailRaw);
   if (!user) throw new Error("Unknown account");
-  user.wallet = wallet.toLowerCase();
+  const next = wallet.toLowerCase();
+  if (
+    user.wallet &&
+    user.wallet !== next &&
+    (await hasOpenLoan({ email: user.email, wallet: user.wallet }))
+  ) {
+    throw new Error("Pay your loan first, then you can change wallets.");
+  }
+  user.wallet = next;
   await saveUser(user, "update");
   return {
     email: user.email,

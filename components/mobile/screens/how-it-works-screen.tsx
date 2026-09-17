@@ -11,6 +11,7 @@ const STEPS = [
   "We see how money comes in and goes out",
   "We look for warning signs",
   "You get a simple yes, no, or how much",
+  "If you borrow, interest is 0.06% a day. Pay in 16 days, or 30 days once we trust you more",
 ];
 
 export function HowItWorksScreen({

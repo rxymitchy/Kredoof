@@ -67,6 +67,12 @@ export function MainScreen({
   reportId,
   applicant,
   onSignOut,
+  hasOpenLoan = false,
+  allowsLongTerm = false,
+  openRepayUsdc = null,
+  onLoanChange,
+  onDisconnectWallet,
+  onDeleteAccount,
 }: {
   tab: MainTab;
   onTab: (tab: MainTab) => void;
@@ -81,6 +87,12 @@ export function MainScreen({
   reportId: string;
   applicant: Applicant;
   onSignOut?: () => void;
+  hasOpenLoan?: boolean;
+  allowsLongTerm?: boolean;
+  openRepayUsdc?: number | null;
+  onLoanChange?: () => void;
+  onDisconnectWallet?: () => void;
+  onDeleteAccount?: () => void;
 }) {
   const { address, connector } = useAccount();
   const connectors = useConnectors();
@@ -149,25 +161,56 @@ export function MainScreen({
           {switcher ? (
             <div className="fade-up absolute top-[calc(100%+6px)] right-0 z-10 w-[190px] rounded-[14px] border border-hairline bg-white p-2 shadow-[0_12px_28px_-10px_rgba(20,23,28,0.22)]">
               <div className="px-1.5 pb-1.5 text-[10px] tracking-wide text-[#a9b0a2] uppercase">
-                Switch wallet
+                {hasOpenLoan ? "Loan open" : "Your account"}
               </div>
-              {connectors.map((c) => (
+              {hasOpenLoan ? (
+                <p className="px-2 pb-2 text-[11px] leading-4 text-muted-foreground">
+                  Pay your loan first. Then you can change wallets or delete
+                  this account.
+                </p>
+              ) : (
+                connectors.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                      connect({ connector: c });
+                      setSwitcher(false);
+                    }}
+                    className={cn(
+                      "font-heading mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2 py-2 text-left text-xs font-semibold",
+                      c.name === connector?.name ? "bg-mint" : "bg-transparent"
+                    )}
+                  >
+                    <span>{c.name}</span>
+                  </button>
+                ))
+              )}
+              {!hasOpenLoan && onDisconnectWallet ? (
                 <button
-                  key={c.id}
                   type="button"
-                  disabled={isPending}
                   onClick={() => {
-                    connect({ connector: c });
                     setSwitcher(false);
+                    onDisconnectWallet();
                   }}
-                  className={cn(
-                    "font-heading mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2 py-2 text-left text-xs font-semibold",
-                    c.name === connector?.name ? "bg-mint" : "bg-transparent"
-                  )}
+                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold"
                 >
-                  <span>{c.name}</span>
+                  Disconnect wallet
                 </button>
-              ))}
+              ) : null}
+              {!hasOpenLoan && onDeleteAccount ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSwitcher(false);
+                    onDeleteAccount();
+                  }}
+                  className="font-heading flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
+                >
+                  Delete account
+                </button>
+              ) : null}
               {onSignOut ? (
                 <button
                   type="button"
@@ -432,7 +475,7 @@ export function MainScreen({
                       {formatUsdc(ceilingUsdc)}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {formatKesOfUsdc(ceilingUsdc)} · {band.rate}
+                      {formatKesOfUsdc(ceilingUsdc)} · 0.06% a day
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
                       Your score is {decision.score} out of 850.
@@ -449,6 +492,10 @@ export function MainScreen({
                   <LoanPanel
                     eligible={decision.recommendedLimitKsh > 0}
                     limitUsdc={usdcFromKes(decision.recommendedLimitKsh)}
+                    allowsLongTerm={allowsLongTerm}
+                    hasOpenLoan={hasOpenLoan}
+                    openRepayUsdc={openRepayUsdc}
+                    onLoanChange={onLoanChange}
                   />
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">
                     This is a snapshot. Keep using your wallet for payments and

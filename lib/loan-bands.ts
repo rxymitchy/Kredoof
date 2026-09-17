@@ -14,7 +14,7 @@ export const LOAN_BANDS: LoanBand[] = [
     max: 669,
     tier: "Starter",
     ceilingKes: 50_000,
-    rate: "About 18–22% a year",
+    rate: "0.06% a day",
     tone: "warn",
   },
   {
@@ -22,7 +22,7 @@ export const LOAN_BANDS: LoanBand[] = [
     max: 739,
     tier: "Growth",
     ceilingKes: 250_000,
-    rate: "About 15–18% a year",
+    rate: "0.06% a day",
     tone: "info",
   },
   {
@@ -30,7 +30,7 @@ export const LOAN_BANDS: LoanBand[] = [
     max: 799,
     tier: "Established",
     ceilingKes: 750_000,
-    rate: "About 12–15% a year",
+    rate: "0.06% a day",
     tone: "good",
   },
   {
@@ -38,7 +38,7 @@ export const LOAN_BANDS: LoanBand[] = [
     max: 850,
     tier: "Prime",
     ceilingKes: 2_000_000,
-    rate: "About 9–12% a year",
+    rate: "0.06% a day",
     tone: "prime",
   },
 ];
