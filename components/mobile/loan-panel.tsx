@@ -96,7 +96,7 @@ export function LoanPanel({
     const got = data.loan?.net_usdc ?? received;
     const pay = data.loan?.repay_usdc ?? due;
     setStatus(
-      `You will receive ${formatUsdc(got)} after the service fee. Send back ${formatUsdc(pay)} in ${termDays} days.`
+      `You will receive ${formatUsdc(got)}. Send back ${formatUsdc(pay)} in ${termDays} days.`
     );
     onLoanChange?.();
   }
@@ -142,8 +142,8 @@ export function LoanPanel({
         Approved up to {formatUsdc(amount)}
       </div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        You receive {formatUsdc(received)}. The app service fee is already taken
-        out of that amount.
+        You receive {formatUsdc(received)}. Send back the amount we show you, on
+        time.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button

@@ -93,7 +93,7 @@ export function generateReportHtml(args: {
         <div><span>Report date</span>${dateStr}</div>
       </div>
       <div class="sec">In short</div>
-      <p style="font-size:12.5px;line-height:1.7;">${applicant.name} has a score of <strong>${decision.score}</strong> out of 850 (${band.tier})${band.ceilingKes > 0 ? `. You may be able to take up to ${formatUsdc(ceilingUsdc)} (${formatKesOfUsdc(ceilingUsdc)}). If you take a loan, a service fee comes out of what you receive. Pay back the amount we show you, on time.` : ". This wallet does not qualify for a loan right now."}</p>
+      <p style="font-size:12.5px;line-height:1.7;">${applicant.name} has a score of <strong>${decision.score}</strong> out of 850 (${band.tier})${band.ceilingKes > 0 ? `. You may be able to take up to ${formatUsdc(ceilingUsdc)} (${formatKesOfUsdc(ceilingUsdc)}). If you qualify, we pass your file to a lender. Pay back the amount we show you, on time.` : ". This wallet does not qualify for a loan right now."}</p>
       <div class="sec">The basics</div>
       <div class="grid">
         <div><span>Your score</span>${decision.score} / 850</div>
