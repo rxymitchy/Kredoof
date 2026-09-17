@@ -93,7 +93,7 @@ export function generateReportHtml(args: {
         <div><span>Report date</span>${dateStr}</div>
       </div>
       <div class="sec">In short</div>
-      <p style="font-size:12.5px;line-height:1.7;">${applicant.name} has a score of <strong>${decision.score}</strong> out of 850 (${band.tier})${band.ceilingKes > 0 ? `. You may be able to take up to ${formatUsdc(ceilingUsdc)} (${formatKesOfUsdc(ceilingUsdc)}). Interest is 0.06% a day. Pay in 16 days, or 30 days after a stronger history.` : ". This wallet does not qualify for a loan right now."}</p>
+      <p style="font-size:12.5px;line-height:1.7;">${applicant.name} has a score of <strong>${decision.score}</strong> out of 850 (${band.tier})${band.ceilingKes > 0 ? `. You may be able to take up to ${formatUsdc(ceilingUsdc)} (${formatKesOfUsdc(ceilingUsdc)}). If you take a loan, a service fee comes out of what you receive. Pay back the amount we show you, on time.` : ". This wallet does not qualify for a loan right now."}</p>
       <div class="sec">The basics</div>
       <div class="grid">
         <div><span>Your score</span>${decision.score} / 850</div>
@@ -106,7 +106,7 @@ export function generateReportHtml(args: {
       <p style="font-size:11px;color:#7C8570;margin-top:8px;">Money in: ${formatUsdc(totalInUsdc)} · Money out: ${formatUsdc(totalOutUsdc)}</p>
       <div class="sec">How we looked at your payments</div>
       <table><tr><th>What we checked</th><th>How it looks</th></tr>${factorRows}</table>
-      <div class="scorebox"><div><div style="font-size:11px;color:#C9A227;text-transform:uppercase;letter-spacing:1px;">Your score</div><div class="num">${decision.score}</div></div><div style="text-align:right;"><div style="font-size:13px;">${band.tier}</div><div style="font-size:11px;color:#cbd5e1;">${band.ceilingKes > 0 ? formatUsdc(ceilingUsdc) + " (" + formatKesOfUsdc(ceilingUsdc) + ") · " + band.rate : "No loan offer yet"}</div></div></div>
+      <div class="scorebox"><div><div style="font-size:11px;color:#C9A227;text-transform:uppercase;letter-spacing:1px;">Your score</div><div class="num">${decision.score}</div></div><div style="text-align:right;"><div style="font-size:13px;">${band.tier}</div><div style="font-size:11px;color:#cbd5e1;">${band.ceilingKes > 0 ? formatUsdc(ceilingUsdc) + " (" + formatKesOfUsdc(ceilingUsdc) + ")" : "No loan offer yet"}</div></div></div>
       <div class="sec">What different scores can mean</div>
       <table><tr><th>Score</th><th>Level</th><th>Up to</th><th>Interest</th></tr>${bandRows}</table>
       <div class="foot">This summary is based on payments we could see in your wallet. It is not a final loan offer. A lender still confirms who you are before sending money. Reference ${reportId}.</div>

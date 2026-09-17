@@ -22,6 +22,9 @@ import {
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
   allowsLongTerm,
+  appFeeUsdc,
+  netDisbursed,
+  originationFee,
   repaymentDue,
 } from "@/lib/loan-terms";
 
@@ -92,6 +95,9 @@ export async function POST(request: Request) {
     }
   }
   const repayAmount = repaymentDue(body.amountUsdc, termDays);
+  const sent = netDisbursed(body.amountUsdc);
+  const appFee = appFeeUsdc();
+  const origination = originationFee(body.amountUsdc);
   const pk = (key.startsWith("0x") ? key : `0x${key}`) as Hex;
   const account = privateKeyToAccount(pk);
   const client = createWalletClient({
@@ -104,12 +110,15 @@ export async function POST(request: Request) {
       address: USDC_AVALANCHE,
       abi: ERC20_TRANSFER,
       functionName: "transfer",
-      args: [body.to, parseUnits(body.amountUsdc.toFixed(6), 6)],
+      args: [body.to, parseUnits(sent.toFixed(6), 6)],
     });
     const opened = {
       id: newLoanId(),
       wallet: body.to.toLowerCase(),
       amount_usdc: body.amountUsdc,
+      net_usdc: sent,
+      origination_usdc: origination,
+      app_fee_usdc: appFee,
       repay_usdc: repayAmount,
       term_days: termDays,
       daily_rate: DAILY_INTEREST_RATE,

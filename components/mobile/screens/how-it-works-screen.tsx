@@ -11,7 +11,7 @@ const STEPS = [
   "We see how money comes in and goes out",
   "We look for warning signs",
   "You get a simple yes, no, or how much",
-  "If you borrow, interest is 0.06% a day. Pay in 16 days, or 30 days once we trust you more",
+  "If you take a loan, a service fee comes out of what you receive. Pay back the amount we show you, on time",
 ];
 
 export function HowItWorksScreen({
@@ -58,7 +58,7 @@ export function HowItWorksScreen({
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 block text-sm text-muted-foreground"
+          className="mt-4 block text-sm font-semibold text-mint-deep"
         >
           Back
         </button>

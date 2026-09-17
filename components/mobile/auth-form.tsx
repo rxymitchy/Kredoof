@@ -456,7 +456,7 @@ export function AuthForm({
         <button
           type="button"
           onClick={() => switchMode("signin")}
-          className="mt-4 block w-full text-center text-sm text-muted-foreground"
+          className="mt-4 block w-full text-center text-sm font-semibold text-mint-deep"
         >
           Back to sign in
         </button>

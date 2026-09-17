@@ -70,6 +70,10 @@ export function MainScreen({
   hasOpenLoan = false,
   allowsLongTerm = false,
   openRepayUsdc = null,
+  openAmountDue = null,
+  openLateFee = null,
+  openDueAt = null,
+  openDaysPastDue = 0,
   onLoanChange,
   onDisconnectWallet,
   onDeleteAccount,
@@ -90,6 +94,10 @@ export function MainScreen({
   hasOpenLoan?: boolean;
   allowsLongTerm?: boolean;
   openRepayUsdc?: number | null;
+  openAmountDue?: number | null;
+  openLateFee?: number | null;
+  openDueAt?: number | null;
+  openDaysPastDue?: number;
   onLoanChange?: () => void;
   onDisconnectWallet?: () => void;
   onDeleteAccount?: () => void;
@@ -99,6 +107,7 @@ export function MainScreen({
   const { connect, isPending } = useConnect();
   const [switcher, setSwitcher] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
+  const [accountNote, setAccountNote] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<OnChainTransaction | null>(
     null
   );
@@ -146,7 +155,10 @@ export function MainScreen({
           <div className="relative">
             <button
               type="button"
-              onClick={() => setSwitcher((v) => !v)}
+              onClick={() => {
+                setAccountNote(null);
+                setSwitcher((v) => !v);
+              }}
               className="font-heading flex items-center gap-2 rounded-xl border border-hairline bg-white px-3 py-2"
             >
               <Wallet size={14} className="text-mint-deep" />
@@ -159,50 +171,64 @@ export function MainScreen({
               <ChevronDown size={14} className="text-[#a9b0a2]" />
             </button>
           {switcher ? (
-            <div className="fade-up absolute top-[calc(100%+6px)] right-0 z-10 w-[190px] rounded-[14px] border border-hairline bg-white p-2 shadow-[0_12px_28px_-10px_rgba(20,23,28,0.22)]">
+            <div className="fade-up absolute top-[calc(100%+6px)] right-0 z-10 w-[220px] rounded-[14px] border border-hairline bg-white p-2 shadow-[0_12px_28px_-10px_rgba(20,23,28,0.22)]">
               <div className="px-1.5 pb-1.5 text-[10px] tracking-wide text-[#a9b0a2] uppercase">
-                {hasOpenLoan ? "Loan open" : "Your account"}
+                Your account
               </div>
-              {hasOpenLoan ? (
-                <p className="px-2 pb-2 text-[11px] leading-4 text-muted-foreground">
-                  Pay your loan first. Then you can change wallets or delete
-                  this account.
-                </p>
-              ) : (
-                connectors.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => {
-                      connect({ connector: c });
-                      setSwitcher(false);
-                    }}
-                    className={cn(
-                      "font-heading mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2 py-2 text-left text-xs font-semibold",
-                      c.name === connector?.name ? "bg-mint" : "bg-transparent"
-                    )}
-                  >
-                    <span>{c.name}</span>
-                  </button>
-                ))
-              )}
-              {!hasOpenLoan && onDisconnectWallet ? (
+              {connectors.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (hasOpenLoan) {
+                      setAccountNote(
+                        "Pay your loan first. Then you can change wallets."
+                      );
+                      return;
+                    }
+                    connect({ connector: c });
+                    setAccountNote(null);
+                    setSwitcher(false);
+                  }}
+                  className={cn(
+                    "font-heading mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-mint-deep",
+                    c.name === connector?.name ? "bg-mint" : "bg-transparent"
+                  )}
+                >
+                  <span>{c.name}</span>
+                </button>
+              ))}
+              {onDisconnectWallet ? (
                 <button
                   type="button"
                   onClick={() => {
+                    if (hasOpenLoan) {
+                      setAccountNote(
+                        "Pay your loan first. Then you can disconnect this wallet."
+                      );
+                      return;
+                    }
+                    setAccountNote(null);
                     setSwitcher(false);
                     onDisconnectWallet();
                   }}
-                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold"
+                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
                 >
                   Disconnect wallet
                 </button>
               ) : null}
-              {!hasOpenLoan && onDeleteAccount ? (
+              {onDeleteAccount ? (
                 <button
                   type="button"
                   onClick={() => {
+                    if (hasOpenLoan) {
+                      setAccountNote(
+                        "Pay your loan first. Then you can delete this account."
+                      );
+                      return;
+                    }
+                    setAccountNote(null);
                     setSwitcher(false);
                     onDeleteAccount();
                   }}
@@ -215,13 +241,19 @@ export function MainScreen({
                 <button
                   type="button"
                   onClick={() => {
+                    setAccountNote(null);
                     setSwitcher(false);
                     onSignOut();
                   }}
-                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
+                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-mint-deep"
                 >
                   Sign out
                 </button>
+              ) : null}
+              {accountNote ? (
+                <p className="mt-1 px-2 py-1 text-[11px] leading-4 text-[#C24545]">
+                  {accountNote}
+                </p>
               ) : null}
             </div>
           ) : null}
@@ -416,7 +448,7 @@ export function MainScreen({
                     onClick={onRunAgent}
                     className="mb-3 flex w-full items-center justify-between rounded-2xl border border-hairline bg-[#FAFBF9] px-4 py-4 text-left"
                   >
-                    <span className="text-sm sm:text-base">
+                    <span className="text-sm font-semibold text-mint-deep sm:text-base">
                       See if {applicant.name} can get a loan
                     </span>
                     <ChevronRight size={16} className="text-[#a9b0a2]" />
@@ -426,7 +458,7 @@ export function MainScreen({
                     onClick={() => setShowDiff((v) => !v)}
                     className="mb-3 flex w-full items-center justify-between rounded-2xl border border-hairline bg-[#FAFBF9] px-4 py-4"
                   >
-                    <span className="text-sm sm:text-base">
+                    <span className="text-sm font-semibold text-mint-deep sm:text-base">
                       Why we look at your payments
                     </span>
                     {showDiff ? (
@@ -475,7 +507,7 @@ export function MainScreen({
                       {formatUsdc(ceilingUsdc)}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {formatKesOfUsdc(ceilingUsdc)} · 0.06% a day
+                      {formatKesOfUsdc(ceilingUsdc)}
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
                       Your score is {decision.score} out of 850.
@@ -495,6 +527,10 @@ export function MainScreen({
                     allowsLongTerm={allowsLongTerm}
                     hasOpenLoan={hasOpenLoan}
                     openRepayUsdc={openRepayUsdc}
+                    openAmountDue={openAmountDue}
+                    openLateFee={openLateFee}
+                    openDueAt={openDueAt}
+                    openDaysPastDue={openDaysPastDue}
                     onLoanChange={onLoanChange}
                   />
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">
@@ -590,7 +626,7 @@ export function MainScreen({
                           {formatUsdc(ceilingUsdc)}
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                          {formatKesOfUsdc(ceilingUsdc)} · {band.rate}
+                          {formatKesOfUsdc(ceilingUsdc)}
                         </div>
                       </div>
                     </div>
@@ -725,7 +761,7 @@ export function MainScreen({
                 </p>
                 <a
                   href={explorerTxUrl(selectedTx.hash)}
-                  className="text-[12px] font-semibold underline"
+                  className="text-[12px] font-semibold text-mint-deep underline"
                 >
                   View payment details
                 </a>

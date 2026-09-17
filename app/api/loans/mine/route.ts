@@ -6,7 +6,7 @@ import {
   hasRepaidLoan,
   loansForAccount,
 } from "@/lib/persist";
-import { allowsLongTerm } from "@/lib/loan-terms";
+import { allowsLongTerm, amountDueNow, daysPastDue, isOpenLoanStatus, lateFeeOn } from "@/lib/loan-terms";
 
 export async function GET() {
   const session = await getSession();
@@ -27,11 +27,23 @@ export async function GET() {
     wallet: session.wallet ?? user?.wallet,
   });
   const score = user?.lastScore ?? 0;
+  const loansWithDue = loans.map((loan) => {
+    const scheduled = loan.repay_usdc ?? loan.amount_usdc;
+    if (!isOpenLoanStatus(loan.status)) return loan;
+    return {
+      ...loan,
+      late_fee: lateFeeOn(scheduled, loan.due_at),
+      amount_due: amountDueNow(scheduled, loan.due_at),
+      days_past_due: daysPastDue(loan.due_at),
+    };
+  });
+  const openLoan = loansWithDue.find((loan) => isOpenLoanStatus(loan.status));
   return NextResponse.json({
-    loans,
+    loans: loansWithDue,
     hasOpenLoan: open,
     hasRepaidLoan: repaid,
     allowsLongTerm: allowsLongTerm(score, repaid),
     lastScore: score,
+    openLoan: openLoan ?? null,
   });
 }
