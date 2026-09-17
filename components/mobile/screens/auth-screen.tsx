@@ -37,7 +37,7 @@ export function AuthScreen({
           <button
             type="button"
             onClick={onBack}
-            className="mt-4 block w-full text-center text-sm text-muted-foreground"
+            className="mt-4 block w-full text-center text-sm font-semibold text-mint-deep"
           >
             Back
           </button>

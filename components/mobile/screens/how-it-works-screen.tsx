@@ -58,7 +58,7 @@ export function HowItWorksScreen({
         <button
           type="button"
           onClick={onBack}
-          className="mt-4 block text-sm text-muted-foreground"
+          className="mt-4 block text-sm font-semibold text-mint-deep"
         >
           Back
         </button>

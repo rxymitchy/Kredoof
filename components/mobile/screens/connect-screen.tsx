@@ -210,7 +210,7 @@ export function ConnectScreen({
         <button
           type="button"
           onClick={onDemo}
-          className="mt-4 block text-sm text-muted-foreground"
+          className="mt-4 block text-sm font-semibold text-mint-deep"
         >
           See a sample result first
         </button>
@@ -218,7 +218,7 @@ export function ConnectScreen({
           <button
             type="button"
             onClick={onSignOut}
-            className="mt-4 block text-sm text-muted-foreground"
+            className="mt-4 block text-sm font-semibold text-mint-deep"
           >
             Sign out
           </button>
