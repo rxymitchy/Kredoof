@@ -30,7 +30,7 @@ Kredoof does not issue loans itself. Treasury draw only works when `TREASURY_PRI
 - Next.js 16 (App Router) · React 19 · TypeScript
 - Tailwind CSS v4 · shadcn/ui · Lucide
 - wagmi · viem · RainbowKit (Avalanche C-Chain `43114`)
-- iron-session cookies · Vercel Blob · Resend
+- iron-session cookies · Neon Postgres · Vercel Blob (one-time import) · Resend
 - FastAPI scoring API (`backend/`) on Vercel
 
 Node.js **20+** and **npm**. Python **3.12+** for the API.
@@ -86,7 +86,8 @@ Copy `.env.example` to `.env.local`. Never commit `.env.local` or private keys.
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_URL` | Recommended | Scoring API origin, no trailing slash. Local default `http://127.0.0.1:8471`. |
 | `SESSION_SECRET` | Production | Cookie signing (32+ characters). |
-| `BLOB_READ_WRITE_TOKEN` | Production | Durable signups (Vercel Blob). Without it, accounts only live in local JSON under `data/` (gitignored). |
+| `BLOB_READ_WRITE_TOKEN` | Until Postgres is live | Old JSON accounts. Used once to copy users into Postgres. |
+| `DATABASE_URL` | Production | Neon Postgres. Accounts, loans, and leads. Without it, the app still uses Vercel Blob JSON. |
 | `NEXT_PUBLIC_APP_URL` | Emails | Public site origin used in confirm/reset links. Production: `https://kredoof.vercel.app`. |
 | `RESEND_API_KEY` | Emails | Sends confirmation and forgot-password mail. Until a domain is verified, Resend’s onboarding from-address often only delivers to the Resend account mailbox. |
 | `EMAIL_FROM` | Emails | Example: `Kredoof <onboarding@resend.dev>`. |
