@@ -1,10 +1,12 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 
+/** True when production (or local) has a Neon connection string. */
 export function dbEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
 
 let sql: NeonQueryFunction<false, false> | null = null;
+/** Create tables once per serverless instance, then reuse the promise. */
 let schemaReady: Promise<void> | null = null;
 
 export function getSql(): NeonQueryFunction<false, false> {
@@ -44,6 +46,7 @@ async function createTables(): Promise<void> {
       deleted_at BIGINT
     )
   `;
+  // Unique only among live accounts so a deleted email/phone can be reused.
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_live ON users (email) WHERE deleted_at IS NULL`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_live ON users (phone) WHERE deleted_at IS NULL AND phone <> ''`;
   await sql`CREATE INDEX IF NOT EXISTS users_verify_hash ON users (verify_token_hash)`;

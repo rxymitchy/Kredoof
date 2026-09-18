@@ -4,6 +4,7 @@ import {
 } from "@/lib/constants";
 import type { OnChainTransaction, TokenAsset } from "@/types";
 
+/** Avalanche C-Chain token transfers (Glacier). Only official USDC and USDT count. */
 const GLACIER = "https://glacier-api.avax.network/v1/chains/43114/addresses";
 const ALLOWED = new Set([
   USDC_AVALANCHE.toLowerCase(),
@@ -28,6 +29,7 @@ function toAmount(value: string, decimals: number): number {
   return Number(`${whole}.${fracStr}`);
 }
 
+/** Last ~800 ERC-20 transfers, filtered to USDC/USDT, newest first. */
 export async function fetchAvalancheStableTransfers(
   address: string
 ): Promise<OnChainTransaction[]> {
@@ -57,7 +59,7 @@ export async function fetchAvalancheStableTransfers(
       const direction = to.toLowerCase() === wallet ? "in" : "out";
       const ts = row.blockTimestamp > 1e12
         ? row.blockTimestamp
-        : row.blockTimestamp * 1000;
+        : row.blockTimestamp * 1000; // Glacier sometimes returns seconds, not ms
       items.push({
         id: row.txHash,
         hash: row.txHash as `0x${string}`,
@@ -77,6 +79,7 @@ export async function fetchAvalancheStableTransfers(
   return items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
+/** Public Avalanche C-Chain RPC — used to confirm receipts actually succeeded. */
 const AVALANCHE_RPC = "https://api.avax.network/ext/bc/C/rpc";
 
 type RpcReceipt = {
@@ -84,6 +87,7 @@ type RpcReceipt = {
   result?: { status?: string; transactionHash?: string } | null;
 };
 
+/** Mark transfers verified when the chain receipt status is success (0x1). */
 export async function confirmTransfersOnChain(
   txs: OnChainTransaction[]
 ): Promise<OnChainTransaction[]> {

@@ -11,6 +11,7 @@ export type KredoofSession = {
   lastSeenAt?: number;
 };
 
+// iron-session needs 32+ chars. Local fallback is only for npm run dev — set SESSION_SECRET in production.
 const password =
   process.env.SESSION_SECRET?.padEnd(32, "k") ??
   "kredoof-dev-session-secret-key!!";
@@ -23,8 +24,8 @@ const sessionOptions: SessionOptions = {
   cookieName: "kredoof_session",
   ttl: SESSION_TTL_SECONDS,
   cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // HTTPS only on the live site
+    httpOnly: true, // JavaScript in the page cannot read the cookie
     sameSite: "lax",
     path: "/",
   },
@@ -67,7 +68,7 @@ export async function readActiveSession() {
     session.destroy();
     return empty;
   }
-  session.lastSeenAt = Date.now();
+  session.lastSeenAt = Date.now(); // sliding 1 hour while they keep using the app
   await session.save();
   return {
     signedIn: true as const,
@@ -78,6 +79,7 @@ export async function readActiveSession() {
   };
 }
 
+/** Scoring API origin with no trailing slash. */
 export function apiOrigin(): string {
   return (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8471").replace(
     /\/$/,
@@ -85,6 +87,7 @@ export function apiOrigin(): string {
   );
 }
 
+/** Public site URL used in confirmation and reset emails. */
 export function appOrigin(request?: Request): string {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (fromEnv) return fromEnv;

@@ -1,5 +1,6 @@
 import type { LoanBand } from "@/types";
 
+/** Score → suggested ceiling. Prime 2M is a vision cap, not a promise. */
 export const LOAN_BANDS: LoanBand[] = [
   {
     min: 300,
