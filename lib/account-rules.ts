@@ -1,6 +1,7 @@
 export const EMAIL_PATTERN =
   /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
+/** Letters (any language), spaces, hyphen, apostrophe. */
 const NAME_PATTERN = /^[\p{L}][\p{L} .'-]{0,39}$/u;
 
 export function isValidEmail(email: string): boolean {
@@ -11,15 +12,15 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** Digits only, Kenyan 07xxxxxxxx becomes 2547xxxxxxxx. */
+/** Digits only. Kenyan 07xxxxxxxx becomes 2547xxxxxxxx so duplicates match. */
 export function normalizePhone(raw: string): string {
   let digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("00")) digits = digits.slice(2); // 00254… → 254…
   if (digits.startsWith("0") && digits.length === 10) {
     digits = `254${digits.slice(1)}`;
   }
   if (digits.startsWith("2540") && digits.length === 13) {
-    digits = `254${digits.slice(4)}`;
+    digits = `254${digits.slice(4)}`; // 2540 7xx → 254 7xx
   }
   return digits;
 }
@@ -33,12 +34,12 @@ export function looksLikeEmail(raw: string): boolean {
   return raw.trim().includes("@");
 }
 
-export function isValidName(value: string): boolean {
-  return NAME_PATTERN.test(value.trim());
-}
-
 export function isValidPassword(password: string): boolean {
   return password.length >= 8 && password.length <= 128;
+}
+
+export function isValidName(value: string): boolean {
+  return NAME_PATTERN.test(value.trim());
 }
 
 export function emailHint(email: string): string | null {

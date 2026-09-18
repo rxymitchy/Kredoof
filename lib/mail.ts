@@ -4,7 +4,7 @@ async function sendEmail(input: {
   html: string;
 }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY?.trim();
-  if (!key) return false;
+  if (!key) return false; // signup still works; they just will not get mail
   const from =
     process.env.EMAIL_FROM?.trim() || "Kredoof <onboarding@resend.dev>";
   const res = await fetch("https://api.resend.com/emails", {

@@ -15,6 +15,9 @@ import {
 import { dbEnabled, ensureSchema, getSql } from "@/lib/db";
 import { isOpenLoanStatus, LEAD_FEE_KES } from "@/lib/loan-terms";
 
+// Accounts, loans, and leads. Postgres when DATABASE_URL is set; otherwise
+// Vercel Blob, or local JSON under data/ when Blob is not linked.
+
 export type StoredUser = {
   id: string;
   email: string;
@@ -67,18 +70,21 @@ export type StoredLead = {
   created_at: number;
 };
 
+/** Blob / local JSON folder. Do not mix with older kredoof-v1 files. */
 const STORE = "kredoof-v2";
 const LOANS_PATH = `${STORE}/loans.json`;
 const LEADS_PATH = `${STORE}/leads.json`;
 const VERIFY_PREFIX = `${STORE}/verify/`;
 const RESET_PREFIX = `${STORE}/reset/`;
 
+/** Slow hash so a leaked table is harder to brute-force. Salt is fixed (kredoof-v1). */
 function hashPassword(password: string): string {
   return pbkdf2Sync(password, "kredoof-v1", 120_000, 32, "sha256").toString(
     "hex"
   );
 }
 
+/** Store hashes of email-confirm / reset tokens, not the raw link. */
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -143,6 +149,7 @@ export class DuplicateAccountError extends Error {
 }
 
 function localFile(pathname: string): string {
+  // On Vercel without Postgres/Blob, /tmp is wiped on cold start — laptop uses data/.
   const dir = process.env.VERCEL
     ? "/tmp"
     : path.join(process.cwd(), "data");
@@ -170,7 +177,7 @@ function isAlreadyExistsError(error: unknown): boolean {
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
       : "";
-  if (code === "EEXIST" || code === "23505") return true;
+  if (code === "EEXIST" || code === "23505") return true; // file exists, or Postgres unique violation
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return (
     message.includes("already exists") ||
@@ -269,6 +276,7 @@ function leadFromRow(row: Record<string, unknown>): StoredLead {
   };
 }
 
+/** Prefer Postgres; on first empty DB, copy leftover Blob users once. */
 async function usingDb(): Promise<boolean> {
   if (!dbEnabled()) return false;
   await ensureSchema();
@@ -279,7 +287,7 @@ async function usingDb(): Promise<boolean> {
 async function importBlobIfEmpty(): Promise<void> {
   const sql = getSql();
   const rows = (await sql`SELECT count(*)::int AS n FROM users`) as { n: number }[];
-  if ((rows[0]?.n ?? 0) > 0) return;
+  if ((rows[0]?.n ?? 0) > 0) return; // already migrated or new signups exist
   const users = await listBlobUsers();
   for (const user of users) {
     try {
@@ -422,6 +430,7 @@ async function upsertLeadRow(lead: StoredLead): Promise<void> {
   `;
 }
 
+/** Read one JSON object from Blob, or from disk when Blob is not configured. */
 async function readObject<T>(pathname: string): Promise<T | null> {
   if (blobEnabled()) {
     try {
@@ -466,6 +475,7 @@ async function writeObject(
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, body, {
     encoding: "utf8",
+    // wx fails if the file exists — used as a unique email/phone lock locally.
     flag: mode === "create" ? "wx" : "w",
   });
 }
@@ -569,6 +579,7 @@ export async function registerUser(input: {
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const name = displayName(firstName, lastName);
+  // Live email and phone must be unique (Postgres indexes, or Blob index files).
   if (await getUserByEmail(email)) throw new DuplicateAccountError("email");
   if (await getUserByPhone(phone)) throw new DuplicateAccountError("phone");
   const id = newId();
@@ -598,6 +609,7 @@ export async function registerUser(input: {
     }
     return { email, phone, name, firstName, lastName, verifyToken: verify.token };
   }
+  // Blob path: create email/phone pointer files first so two signups cannot race.
   try {
     await writeObject(emailIndexPath(email), { id }, "create");
   } catch (error) {
@@ -646,6 +658,7 @@ export async function loginUser(
   const actual = hashPassword(password);
   const a = Buffer.from(actual, "hex");
   const b = Buffer.from(user.passwordHash, "hex");
+  // timingSafeEqual avoids leaking password length via response time.
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     throw new LoginError("password", "Wrong password");
   }
@@ -841,6 +854,7 @@ export async function deleteUserAccount(emailRaw: string): Promise<void> {
   if (await hasOpenLoan({ email: user.email, wallet: user.wallet })) {
     throw new Error("Pay your loan first, then you can delete this account.");
   }
+  // Soft-delete: keep the row, free the email/phone, scramble the password.
   user.deletedAt = Date.now();
   user.wallet = null;
   user.passwordHash = hashPassword(randomBytes(24).toString("hex"));
@@ -1048,6 +1062,7 @@ export function newLoanId(): string {
     .slice(0, 16);
 }
 
+/** Copy Blob users even if Postgres already has rows (skips duplicates). */
 export async function migrateFromBlob(): Promise<{ users: number; loans: number; leads: number }> {
   if (!dbEnabled()) {
     throw new Error("DATABASE_URL is not set");
