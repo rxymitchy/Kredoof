@@ -12,6 +12,7 @@ import {
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
+import { dbEnabled, ensureSchema, getSql } from "@/lib/db";
 import { isOpenLoanStatus, LEAD_FEE_KES } from "@/lib/loan-terms";
 
 export type StoredUser = {
@@ -169,13 +170,256 @@ function isAlreadyExistsError(error: unknown): boolean {
     error && typeof error === "object" && "code" in error
       ? String((error as { code?: unknown }).code)
       : "";
-  if (code === "EEXIST") return true;
+  if (code === "EEXIST" || code === "23505") return true;
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return (
     message.includes("already exists") ||
     message.includes("already been taken") ||
+    message.includes("duplicate key") ||
     message.includes("blob already exists")
   );
+}
+
+function duplicateField(error: unknown): "email" | "phone" {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (message.includes("phone")) return "phone";
+  return "email";
+}
+
+type UserRow = {
+  id: string;
+  email: string;
+  phone: string;
+  password_hash: string;
+  first_name: string;
+  last_name: string;
+  name: string;
+  wallet: string | null;
+  email_verified: boolean;
+  verify_token_hash: string | null;
+  verify_token_expires: string | number | null;
+  reset_token_hash: string | null;
+  reset_token_expires: string | number | null;
+  created_at: string | number;
+  last_score: number | null;
+  deleted_at: string | number | null;
+};
+
+function num(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  return Number(value);
+}
+
+function userFromRow(row: UserRow): StoredUser {
+  return normalizeUser({
+    id: row.id,
+    email: row.email,
+    phone: row.phone ?? "",
+    passwordHash: row.password_hash,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    name: row.name,
+    wallet: row.wallet,
+    emailVerified: Boolean(row.email_verified),
+    verifyTokenHash: row.verify_token_hash,
+    verifyTokenExpires: num(row.verify_token_expires),
+    resetTokenHash: row.reset_token_hash,
+    resetTokenExpires: num(row.reset_token_expires),
+    createdAt: Number(row.created_at),
+    lastScore: row.last_score,
+    deletedAt: num(row.deleted_at),
+  });
+}
+
+function loanFromRow(row: Record<string, unknown>): StoredLoan {
+  return {
+    id: String(row.id),
+    email: (row.email as string | null) ?? null,
+    wallet: String(row.wallet),
+    amount_usdc: Number(row.amount_usdc),
+    net_usdc: row.net_usdc == null ? undefined : Number(row.net_usdc),
+    origination_usdc:
+      row.origination_usdc == null ? undefined : Number(row.origination_usdc),
+    app_fee_usdc: row.app_fee_usdc == null ? undefined : Number(row.app_fee_usdc),
+    lead_id: (row.lead_id as string | null) ?? null,
+    repay_usdc: row.repay_usdc == null ? undefined : Number(row.repay_usdc),
+    term_days: row.term_days == null ? undefined : Number(row.term_days),
+    daily_rate: row.daily_rate == null ? undefined : Number(row.daily_rate),
+    due_at: row.due_at == null ? undefined : Number(row.due_at),
+    status: String(row.status),
+    disburse_tx: (row.disburse_tx as string | null) ?? null,
+    repay_tx: (row.repay_tx as string | null) ?? null,
+    created_at: Number(row.created_at),
+  };
+}
+
+function leadFromRow(row: Record<string, unknown>): StoredLead {
+  return {
+    id: String(row.id),
+    email: (row.email as string | null) ?? null,
+    wallet: String(row.wallet),
+    score: row.score == null ? undefined : Number(row.score),
+    limit_kes: row.limit_kes == null ? undefined : Number(row.limit_kes),
+    fee_kes: Number(row.fee_kes),
+    payer: "lender",
+    status: row.status === "funded" ? "funded" : "offered",
+    lender: (row.lender as string | undefined) ?? undefined,
+    loan_id: (row.loan_id as string | null) ?? null,
+    created_at: Number(row.created_at),
+  };
+}
+
+async function usingDb(): Promise<boolean> {
+  if (!dbEnabled()) return false;
+  await ensureSchema();
+  await importBlobIfEmpty();
+  return true;
+}
+
+async function importBlobIfEmpty(): Promise<void> {
+  const sql = getSql();
+  const rows = (await sql`SELECT count(*)::int AS n FROM users`) as { n: number }[];
+  if ((rows[0]?.n ?? 0) > 0) return;
+  const users = await listBlobUsers();
+  for (const user of users) {
+    try {
+      await insertUserRow(user);
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) throw error;
+    }
+  }
+  const loans = await readJson<StoredLoan[]>(LOANS_PATH, []);
+  for (const loan of loans) {
+    await upsertLoanRow(loan).catch(() => null);
+  }
+  const leads = await readJson<StoredLead[]>(LEADS_PATH, []);
+  for (const lead of leads) {
+    await upsertLeadRow(lead).catch(() => null);
+  }
+}
+
+async function listBlobUsers(): Promise<StoredUser[]> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return [];
+  const users: StoredUser[] = [];
+  let cursor = "";
+  for (let page = 0; page < 20; page++) {
+    const url = new URL("https://blob.vercel-storage.com");
+    url.searchParams.set("limit", "1000");
+    url.searchParams.set("prefix", `${STORE}/users/`);
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) break;
+    const body = (await res.json()) as {
+      blobs?: { pathname?: string }[];
+      cursor?: string;
+      hasMore?: boolean;
+    };
+    for (const blob of body.blobs ?? []) {
+      if (!blob.pathname) continue;
+      const stored = await readObject<StoredUser>(blob.pathname);
+      if (stored?.id && !stored.deletedAt) users.push(normalizeUser(stored));
+    }
+    if (!body.hasMore || !body.cursor) break;
+    cursor = body.cursor;
+  }
+  return users;
+}
+
+async function insertUserRow(user: StoredUser): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO users (
+      id, email, phone, password_hash, first_name, last_name, name, wallet,
+      email_verified, verify_token_hash, verify_token_expires,
+      reset_token_hash, reset_token_expires, created_at, last_score, deleted_at
+    ) VALUES (
+      ${user.id}, ${user.email}, ${user.phone}, ${user.passwordHash},
+      ${user.firstName}, ${user.lastName}, ${user.name}, ${user.wallet ?? null},
+      ${Boolean(user.emailVerified)}, ${user.verifyTokenHash ?? null},
+      ${user.verifyTokenExpires ?? null}, ${user.resetTokenHash ?? null},
+      ${user.resetTokenExpires ?? null}, ${user.createdAt}, ${user.lastScore ?? null},
+      ${user.deletedAt ?? null}
+    )
+  `;
+}
+
+async function updateUserRow(user: StoredUser): Promise<void> {
+  const sql = getSql();
+  await sql`
+    UPDATE users SET
+      email = ${user.email},
+      phone = ${user.phone},
+      password_hash = ${user.passwordHash},
+      first_name = ${user.firstName},
+      last_name = ${user.lastName},
+      name = ${user.name},
+      wallet = ${user.wallet ?? null},
+      email_verified = ${Boolean(user.emailVerified)},
+      verify_token_hash = ${user.verifyTokenHash ?? null},
+      verify_token_expires = ${user.verifyTokenExpires ?? null},
+      reset_token_hash = ${user.resetTokenHash ?? null},
+      reset_token_expires = ${user.resetTokenExpires ?? null},
+      last_score = ${user.lastScore ?? null},
+      deleted_at = ${user.deletedAt ?? null}
+    WHERE id = ${user.id}
+  `;
+}
+
+async function upsertLoanRow(loan: StoredLoan): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO loans (
+      id, email, wallet, amount_usdc, net_usdc, origination_usdc, app_fee_usdc,
+      lead_id, repay_usdc, term_days, daily_rate, due_at, status,
+      disburse_tx, repay_tx, created_at
+    ) VALUES (
+      ${loan.id}, ${loan.email ?? null}, ${loan.wallet}, ${loan.amount_usdc},
+      ${loan.net_usdc ?? null}, ${loan.origination_usdc ?? null}, ${loan.app_fee_usdc ?? null},
+      ${loan.lead_id ?? null}, ${loan.repay_usdc ?? null}, ${loan.term_days ?? null},
+      ${loan.daily_rate ?? null}, ${loan.due_at ?? null}, ${loan.status},
+      ${loan.disburse_tx ?? null}, ${loan.repay_tx ?? null}, ${loan.created_at}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      wallet = EXCLUDED.wallet,
+      amount_usdc = EXCLUDED.amount_usdc,
+      net_usdc = EXCLUDED.net_usdc,
+      origination_usdc = EXCLUDED.origination_usdc,
+      app_fee_usdc = EXCLUDED.app_fee_usdc,
+      lead_id = EXCLUDED.lead_id,
+      repay_usdc = EXCLUDED.repay_usdc,
+      term_days = EXCLUDED.term_days,
+      daily_rate = EXCLUDED.daily_rate,
+      due_at = EXCLUDED.due_at,
+      status = EXCLUDED.status,
+      disburse_tx = EXCLUDED.disburse_tx,
+      repay_tx = EXCLUDED.repay_tx
+  `;
+}
+
+async function upsertLeadRow(lead: StoredLead): Promise<void> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO leads (
+      id, email, wallet, score, limit_kes, fee_kes, payer, status, lender, loan_id, created_at
+    ) VALUES (
+      ${lead.id}, ${lead.email ?? null}, ${lead.wallet}, ${lead.score ?? null},
+      ${lead.limit_kes ?? null}, ${lead.fee_kes}, ${lead.payer}, ${lead.status},
+      ${lead.lender ?? null}, ${lead.loan_id ?? null}, ${lead.created_at}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      wallet = EXCLUDED.wallet,
+      score = EXCLUDED.score,
+      limit_kes = EXCLUDED.limit_kes,
+      fee_kes = EXCLUDED.fee_kes,
+      status = EXCLUDED.status,
+      lender = EXCLUDED.lender,
+      loan_id = EXCLUDED.loan_id
+  `;
 }
 
 async function readObject<T>(pathname: string): Promise<T | null> {
@@ -237,6 +481,13 @@ async function writeJson(pathname: string, data: unknown): Promise<void> {
 
 async function getUserById(id: string): Promise<StoredUser | null> {
   if (!id) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`SELECT * FROM users WHERE id = ${id} LIMIT 1`) as UserRow[];
+    const row = rows[0];
+    if (!row || row.deleted_at) return null;
+    return userFromRow(row);
+  }
   const stored = await readObject<StoredUser>(userPath(id));
   return stored ? normalizeUser(stored) : null;
 }
@@ -246,6 +497,13 @@ export async function getUserByEmail(
 ): Promise<StoredUser | null> {
   const email = normalizeEmail(emailRaw);
   if (!email) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM users WHERE email = ${email} AND deleted_at IS NULL LIMIT 1
+    `) as UserRow[];
+    return rows[0] ? userFromRow(rows[0]) : null;
+  }
   const index = await readObject<{ id?: string }>(emailIndexPath(email));
   if (!index?.id) return null;
   const user = await getUserById(index.id);
@@ -258,6 +516,13 @@ export async function getUserByPhone(
 ): Promise<StoredUser | null> {
   const phone = normalizePhone(phoneRaw);
   if (!phone) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM users WHERE phone = ${phone} AND deleted_at IS NULL LIMIT 1
+    `) as UserRow[];
+    return rows[0] ? userFromRow(rows[0]) : null;
+  }
   const index = await readObject<{ id?: string }>(phoneIndexPath(phone));
   if (!index?.id) return null;
   const user = await getUserById(index.id);
@@ -275,6 +540,11 @@ export async function getUserByIdentifier(
 }
 
 async function saveUser(user: StoredUser, mode: "create" | "update") {
+  if (await usingDb()) {
+    if (mode === "create") await insertUserRow(user);
+    else await updateUserRow(user);
+    return;
+  }
   await writeObject(userPath(user.id), user, mode);
 }
 
@@ -319,6 +589,15 @@ export async function registerUser(input: {
     resetTokenExpires: null,
     createdAt: Date.now(),
   };
+  if (await usingDb()) {
+    try {
+      await insertUserRow(user);
+    } catch (err) {
+      if (isAlreadyExistsError(err)) throw new DuplicateAccountError(duplicateField(err));
+      throw err;
+    }
+    return { email, phone, name, firstName, lastName, verifyToken: verify.token };
+  }
   try {
     await writeObject(emailIndexPath(email), { id }, "create");
   } catch (error) {
@@ -390,20 +669,30 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
   const token = tokenRaw.trim();
   if (!token) throw new Error("Missing confirmation link");
   const hash = hashToken(token);
-  const lookup = await readObject<{
-    id?: string;
-    email?: string;
-    expires?: number;
-  }>(verifyObjectPath(hash));
-  const user = lookup?.id
-    ? await getUserById(lookup.id)
-    : lookup?.email
-      ? await getUserByEmail(lookup.email)
-      : null;
+  let user: StoredUser | null = null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM users WHERE verify_token_hash = ${hash} AND deleted_at IS NULL LIMIT 1
+    `) as UserRow[];
+    user = rows[0] ? userFromRow(rows[0]) : null;
+  } else {
+    const lookup = await readObject<{
+      id?: string;
+      email?: string;
+      expires?: number;
+    }>(verifyObjectPath(hash));
+    user = lookup?.id
+      ? await getUserById(lookup.id)
+      : lookup?.email
+        ? await getUserByEmail(lookup.email)
+        : null;
+    if (user && user.verifyTokenHash !== hash) user = null;
+  }
   if (!user || user.verifyTokenHash !== hash) {
     throw new Error("This confirmation link is invalid");
   }
-  const expires = lookup?.expires ?? user.verifyTokenExpires ?? 0;
+  const expires = user.verifyTokenExpires ?? 0;
   if (expires < Date.now()) {
     throw new Error(
       "This confirmation link has expired. Sign in with your password."
@@ -434,11 +723,13 @@ export async function requestPasswordReset(identifierRaw: string): Promise<{
   user.resetTokenHash = reset.hash;
   user.resetTokenExpires = reset.expires;
   await saveUser(user, "update");
-  await writeObject(
-    resetObjectPath(reset.hash),
-    { id: user.id, email: user.email, expires: reset.expires },
-    "update"
-  ).catch(() => null);
+  if (!(await usingDb())) {
+    await writeObject(
+      resetObjectPath(reset.hash),
+      { id: user.id, email: user.email, expires: reset.expires },
+      "update"
+    ).catch(() => null);
+  }
   return { email: user.email, name: user.name, resetToken: reset.token };
 }
 
@@ -451,20 +742,29 @@ export async function resetPasswordWithToken(
   const token = tokenRaw.trim();
   if (!token) throw new Error("Missing reset link");
   const hash = hashToken(token);
-  const lookup = await readObject<{
-    id?: string;
-    email?: string;
-    expires?: number;
-  }>(resetObjectPath(hash));
-  const user = lookup?.id
-    ? await getUserById(lookup.id)
-    : lookup?.email
-      ? await getUserByEmail(lookup.email)
-      : null;
+  let user: StoredUser | null = null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM users WHERE reset_token_hash = ${hash} AND deleted_at IS NULL LIMIT 1
+    `) as UserRow[];
+    user = rows[0] ? userFromRow(rows[0]) : null;
+  } else {
+    const lookup = await readObject<{
+      id?: string;
+      email?: string;
+      expires?: number;
+    }>(resetObjectPath(hash));
+    user = lookup?.id
+      ? await getUserById(lookup.id)
+      : lookup?.email
+        ? await getUserByEmail(lookup.email)
+        : null;
+  }
   if (!user || user.resetTokenHash !== hash) {
     throw new Error("This reset link is invalid");
   }
-  const expires = lookup?.expires ?? user.resetTokenExpires ?? 0;
+  const expires = user.resetTokenExpires ?? 0;
   if (expires < Date.now()) {
     throw new Error("This reset link has expired. Request a new one.");
   }
@@ -476,6 +776,14 @@ export async function resetPasswordWithToken(
 }
 
 export async function listLoans(): Promise<StoredLoan[]> {
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`SELECT * FROM loans ORDER BY created_at DESC`) as Record<
+      string,
+      unknown
+    >[];
+    return rows.map(loanFromRow);
+  }
   return readJson<StoredLoan[]>(LOANS_PATH, []);
 }
 
@@ -485,6 +793,16 @@ export async function loansForAccount(input: {
 }): Promise<StoredLoan[]> {
   const email = input.email ? normalizeEmail(input.email) : "";
   const wallet = input.wallet?.toLowerCase() ?? "";
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM loans
+      WHERE (${email} <> '' AND email = ${email})
+         OR (${wallet} <> '' AND wallet = ${wallet})
+      ORDER BY created_at DESC
+    `) as Record<string, unknown>[];
+    return rows.map(loanFromRow);
+  }
   const loans = await listLoans();
   return loans.filter((loan) => {
     const matchEmail = email && loan.email && normalizeEmail(loan.email) === email;
@@ -527,13 +845,15 @@ export async function deleteUserAccount(emailRaw: string): Promise<void> {
   user.wallet = null;
   user.passwordHash = hashPassword(randomBytes(24).toString("hex"));
   await saveUser(user, "update");
-  await writeObject(emailIndexPath(user.email), { id: "" }, "update").catch(
-    () => null
-  );
-  if (user.phone) {
-    await writeObject(phoneIndexPath(user.phone), { id: "" }, "update").catch(
+  if (!(await usingDb())) {
+    await writeObject(emailIndexPath(user.email), { id: "" }, "update").catch(
       () => null
     );
+    if (user.phone) {
+      await writeObject(phoneIndexPath(user.phone), { id: "" }, "update").catch(
+        () => null
+      );
+    }
   }
 }
 
@@ -561,6 +881,10 @@ export async function bindUserWallet(emailRaw: string, wallet: string) {
 }
 
 export async function recordLoan(loan: StoredLoan): Promise<StoredLoan> {
+  if (await usingDb()) {
+    await upsertLoanRow(loan);
+    return loan;
+  }
   const loans = await readJson<StoredLoan[]>(LOANS_PATH, []);
   const next = loans.filter((item) => item.id !== loan.id);
   next.unshift(loan);
@@ -569,6 +893,14 @@ export async function recordLoan(loan: StoredLoan): Promise<StoredLoan> {
 }
 
 export async function listLeads(): Promise<StoredLead[]> {
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`SELECT * FROM leads ORDER BY created_at DESC`) as Record<
+      string,
+      unknown
+    >[];
+    return rows.map(leadFromRow);
+  }
   return readJson<StoredLead[]>(LEADS_PATH, []);
 }
 
@@ -580,6 +912,41 @@ export async function recordQualifiedLead(input: {
 }): Promise<StoredLead> {
   const email = input.email ? normalizeEmail(input.email) : "";
   const wallet = input.wallet.toLowerCase();
+  if (await usingDb()) {
+    const sql = getSql();
+    const openRows = (await sql`
+      SELECT * FROM leads
+      WHERE status = 'offered'
+        AND (
+          (${email} <> '' AND email = ${email})
+          OR wallet = ${wallet}
+        )
+      ORDER BY created_at DESC
+      LIMIT 1
+    `) as Record<string, unknown>[];
+    if (openRows[0]) {
+      const open = leadFromRow(openRows[0]);
+      open.score = input.score ?? open.score;
+      open.limit_kes = input.limit_kes ?? open.limit_kes;
+      await upsertLeadRow(open);
+      return open;
+    }
+    const lead: StoredLead = {
+      id: newLoanId(),
+      email: email || null,
+      wallet,
+      score: input.score,
+      limit_kes: input.limit_kes,
+      fee_kes: LEAD_FEE_KES,
+      payer: "lender",
+      status: "offered",
+      lender: "marketplace",
+      loan_id: null,
+      created_at: Date.now(),
+    };
+    await upsertLeadRow(lead);
+    return lead;
+  }
   const leads = await listLeads();
   const open = leads.find((lead) => {
     if (lead.status !== "offered") return false;
@@ -618,6 +985,25 @@ export async function markLeadFunded(input: {
 }): Promise<StoredLead | null> {
   const email = input.email ? normalizeEmail(input.email) : "";
   const wallet = input.wallet.toLowerCase();
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM leads
+      WHERE status = 'offered'
+        AND (
+          (${email} <> '' AND email = ${email})
+          OR wallet = ${wallet}
+        )
+      ORDER BY created_at DESC
+      LIMIT 1
+    `) as Record<string, unknown>[];
+    if (!rows[0]) return null;
+    const lead = leadFromRow(rows[0]);
+    lead.status = "funded";
+    lead.loan_id = input.loanId;
+    await upsertLeadRow(lead);
+    return lead;
+  }
   const leads = await listLeads();
   const lead = leads.find((item) => {
     if (item.status !== "offered") return false;
@@ -636,6 +1022,17 @@ export async function updateLoan(
   id: string,
   patch: Partial<StoredLoan>
 ): Promise<StoredLoan> {
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`SELECT * FROM loans WHERE id = ${id} LIMIT 1`) as Record<
+      string,
+      unknown
+    >[];
+    if (!rows[0]) throw new Error("Unknown loan");
+    const loan = { ...loanFromRow(rows[0]), ...patch };
+    await upsertLoanRow(loan);
+    return loan;
+  }
   const loans = await readJson<StoredLoan[]>(LOANS_PATH, []);
   const loan = loans.find((l) => l.id === id);
   if (!loan) throw new Error("Unknown loan");
@@ -649,4 +1046,36 @@ export function newLoanId(): string {
     .update(`${Date.now()}-${Math.random()}`)
     .digest("hex")
     .slice(0, 16);
+}
+
+export async function migrateFromBlob(): Promise<{ users: number; loans: number; leads: number }> {
+  if (!dbEnabled()) {
+    throw new Error("DATABASE_URL is not set");
+  }
+  await ensureSchema();
+  const users = await listBlobUsers();
+  for (const user of users) {
+    try {
+      await insertUserRow(user);
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) throw error;
+    }
+  }
+  const loans = await readJson<StoredLoan[]>(LOANS_PATH, []);
+  for (const loan of loans) {
+    await upsertLoanRow(loan).catch(() => null);
+  }
+  const leads = await readJson<StoredLead[]>(LEADS_PATH, []);
+  for (const lead of leads) {
+    await upsertLeadRow(lead).catch(() => null);
+  }
+  const sql = getSql();
+  const userRows = (await sql`SELECT count(*)::int AS n FROM users`) as { n: number }[];
+  const loanRows = (await sql`SELECT count(*)::int AS n FROM loans`) as { n: number }[];
+  const leadRows = (await sql`SELECT count(*)::int AS n FROM leads`) as { n: number }[];
+  return {
+    users: userRows[0]?.n ?? 0,
+    loans: loanRows[0]?.n ?? 0,
+    leads: leadRows[0]?.n ?? 0,
+  };
 }

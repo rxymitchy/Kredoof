@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Neon marketplace agent skills (local tooling)
+.agents/
+
 # python
 **/__pycache__/
 *.pyc
