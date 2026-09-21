@@ -64,7 +64,7 @@ export function HowItWorksScreen({
           }}
           className="font-heading inline-flex items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground"
         >
-          Fund a file
+          Become a lender
         </button>
       </div>
       {onBack ? (

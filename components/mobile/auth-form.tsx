@@ -264,7 +264,7 @@ export function AuthForm({
             {(
               [
                 ["borrower", "Get credit"],
-                ["lender", "Fund files"],
+                ["lender", "Lend"],
               ] as const
             ).map(([value, label]) => (
               <button
