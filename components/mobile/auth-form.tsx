@@ -490,6 +490,20 @@ export function AuthForm({
       <PrimaryButton type="submit" disabled={busy}>
         {busy ? "Please wait…" : submitLabel}
       </PrimaryButton>
+      {mode === "signin" || mode === "signup" ? (
+        <>
+          <p className="mt-4 text-center text-xs text-muted-foreground">or</p>
+          <a
+            href="/api/auth/google"
+            className="font-heading mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground"
+          >
+            Continue with Google
+          </a>
+          <p className="mt-2 text-center text-xs leading-5 text-muted-foreground">
+            Same Gmail you used to create your account. New here? Sign up first.
+          </p>
+        </>
+      ) : null}
       {mode === "forgot" || mode === "reset" ? (
         <button
           type="button"

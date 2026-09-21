@@ -37,7 +37,7 @@ const serif = Spectral({
 export const metadata: Metadata = {
   title: "Kredoof — Got the proof? Get the credit.",
   description:
-    "Turn verified blockchain transaction history into a credit profile lenders can understand.",
+    "Show the money that already moved in your wallet. Get a simple credit result, or lend to a business that qualified.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -38,6 +38,7 @@ export type StoredUser = {
   lastScore?: number | null;
   deletedAt?: number | null;
   role?: AccountRole;
+  googleId?: string | null;
 };
 
 export type StoredLoan = {
@@ -172,6 +173,7 @@ function normalizeUser(raw: StoredUser): StoredUser {
     lastName,
     name: raw.name || displayName(firstName, lastName),
     role: parseAccountRole(raw.role),
+    googleId: raw.googleId ?? null,
   };
 }
 
@@ -215,6 +217,7 @@ type UserRow = {
   last_score: number | null;
   deleted_at: string | number | null;
   role: string | null;
+  google_id: string | null;
 };
 
 function num(value: string | number | null | undefined): number | null {
@@ -241,6 +244,7 @@ function userFromRow(row: UserRow): StoredUser {
     lastScore: row.last_score,
     deletedAt: num(row.deleted_at),
     role: parseAccountRole(row.role),
+    googleId: row.google_id,
   });
 }
 
@@ -353,14 +357,14 @@ async function insertUserRow(user: StoredUser): Promise<void> {
     INSERT INTO users (
       id, email, phone, password_hash, first_name, last_name, name, wallet,
       email_verified, verify_token_hash, verify_token_expires,
-      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role
+      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id
     ) VALUES (
       ${user.id}, ${user.email}, ${user.phone}, ${user.passwordHash},
       ${user.firstName}, ${user.lastName}, ${user.name}, ${user.wallet ?? null},
       ${Boolean(user.emailVerified)}, ${user.verifyTokenHash ?? null},
       ${user.verifyTokenExpires ?? null}, ${user.resetTokenHash ?? null},
       ${user.resetTokenExpires ?? null}, ${user.createdAt}, ${user.lastScore ?? null},
-      ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}
+      ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}, ${user.googleId ?? null}
     )
   `;
 }
@@ -383,7 +387,8 @@ async function updateUserRow(user: StoredUser): Promise<void> {
       reset_token_expires = ${user.resetTokenExpires ?? null},
       last_score = ${user.lastScore ?? null},
       deleted_at = ${user.deletedAt ?? null},
-      role = ${parseAccountRole(user.role)}
+      role = ${parseAccountRole(user.role)},
+      google_id = ${user.googleId ?? null}
     WHERE id = ${user.id}
   `;
 }
@@ -679,6 +684,69 @@ export async function loginUser(
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     throw new LoginError("password", "Wrong password");
   }
+  return {
+    email: user.email,
+    phone: user.phone,
+    name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    wallet: user.wallet,
+    role: parseAccountRole(user.role),
+  };
+}
+
+export async function getUserByGoogleId(googleId: string): Promise<StoredUser | null> {
+  const id = googleId.trim();
+  if (!id) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM users WHERE google_id = ${id} AND deleted_at IS NULL LIMIT 1
+    `) as UserRow[];
+    return rows[0] ? userFromRow(rows[0]) : null;
+  }
+  return null;
+}
+
+export async function loginWithGoogle(input: {
+  googleId: string;
+  email: string;
+}): Promise<{
+  email: string;
+  phone: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  wallet?: string | null;
+  role: AccountRole;
+}> {
+  const googleId = input.googleId.trim();
+  const email = normalizeEmail(input.email);
+  if (!googleId || !email) {
+    throw new LoginError("email", "Google did not share an email we can use.");
+  }
+  let user = await getUserByGoogleId(googleId);
+  if (!user) {
+    user = await getUserByEmail(email);
+  }
+  if (!user) {
+    throw new LoginError(
+      "email",
+      "Create a Kredoof account first with this Gmail, then Continue with Google next time."
+    );
+  }
+  if (user.googleId && user.googleId !== googleId) {
+    throw new LoginError("email", "This email is already linked to another Google account.");
+  }
+  if (normalizeEmail(user.email) !== email && user.googleId !== googleId) {
+    throw new LoginError(
+      "email",
+      "Use the same Gmail you used when you created your Kredoof account."
+    );
+  }
+  user.googleId = googleId;
+  user.emailVerified = true;
+  await saveUser(user, "update");
   return {
     email: user.email,
     phone: user.phone,
