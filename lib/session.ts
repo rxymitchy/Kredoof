@@ -1,3 +1,4 @@
+import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
@@ -9,6 +10,7 @@ export type KredoofSession = {
   wallet?: string;
   signedIn?: boolean;
   lastSeenAt?: number;
+  role?: AccountRole;
 };
 
 // iron-session needs 32+ chars. Local fallback is only for npm run dev — set SESSION_SECRET in production.
@@ -41,12 +43,14 @@ export async function establishSession(input: {
   phone?: string | null;
   name?: string | null;
   wallet?: string | null;
+  role?: AccountRole | null;
 }) {
   const session = await getSession();
   if (input.email) session.email = input.email;
   if (input.phone) session.phone = input.phone;
   if (input.name) session.name = input.name;
   if (input.wallet) session.wallet = input.wallet;
+  session.role = parseAccountRole(input.role);
   session.signedIn = true;
   session.lastSeenAt = Date.now();
   await session.save();
@@ -60,6 +64,7 @@ export async function readActiveSession() {
     phone: null,
     name: null,
     wallet: null,
+    role: null,
   };
   const session = await getSession();
   if (!session.signedIn) return empty;
@@ -76,6 +81,7 @@ export async function readActiveSession() {
     phone: session.phone ?? null,
     name: session.name ?? null,
     wallet: session.wallet ?? null,
+    role: parseAccountRole(session.role),
   };
 }
 

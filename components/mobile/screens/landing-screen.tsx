@@ -7,12 +7,14 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 
 export function LandingScreen() {
   const [signedIn, setSignedIn] = useState(false);
+  const [role, setRole] = useState<"borrower" | "lender">("borrower");
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((data: { signedIn?: boolean }) => {
+      .then((data: { signedIn?: boolean; role?: "borrower" | "lender" }) => {
         setSignedIn(Boolean(data.signedIn));
+        if (data.role === "lender") setRole("lender");
       })
       .catch(() => undefined);
   }, []);
@@ -40,18 +42,35 @@ export function LandingScreen() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              href={signedIn ? "/onboard?step=connect" : "/onboard?step=signup"}
+              href={
+                signedIn
+                  ? role === "lender"
+                    ? "/lend"
+                    : "/onboard?step=connect"
+                  : "/onboard?step=signup"
+              }
               className="font-heading inline-flex w-full items-center justify-center rounded-2xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground sm:w-auto"
             >
-              {signedIn ? "Continue" : "Sign up"}
+              {signedIn ? "Continue" : "Get credit"}
             </Link>
             <Link
-              href="/how"
+              href={
+                signedIn && role === "lender"
+                  ? "/lend"
+                  : "/onboard?step=signup&as=lender"
+              }
               className="font-heading inline-flex w-full items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground sm:w-auto"
             >
-              See How It Works
+              Fund a file
             </Link>
           </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Borrowers build a file from wallet payments. Lenders pay KSh 100 for an exclusive
+            qualified file, then fund.{" "}
+            <Link href="/how" className="font-semibold text-mint-deep underline-offset-4 hover:underline">
+              How it works
+            </Link>
+          </p>
           <p className="mt-4 text-sm text-muted-foreground">
             {signedIn ? (
               <>

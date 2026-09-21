@@ -5,13 +5,12 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PrimaryButton } from "@/components/mobile/ui";
 
 const STEPS = [
-  "Connect your wallet",
-  "We look at your payments",
-  "We check they are real",
-  "We see how money comes in and goes out",
-  "We look for warning signs",
-  "You get a simple yes, no, or how much",
-  "If you qualify, we pass your file to a lender. If you take a loan, pay back the amount we show you, on time",
+  "A business signs up and connects a wallet",
+  "We look at real USDC/USDT payments",
+  "If they qualify, the file lands on the lender desk",
+  "A lender pays KSh 100 for that exclusive file",
+  "The lender funds. The borrower receives the amount we show, minus 1%",
+  "The borrower pays back the amount we show, on time. Daily interest goes to the funder",
 ];
 
 export function HowItWorksScreen({
@@ -29,7 +28,8 @@ export function HowItWorksScreen({
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
           Banks often ask for paper statements. We look at the money that
-          already moved through your wallet.
+          already moved through the wallet, then put a qualified file in front
+          of a lender.
         </p>
         <p className="font-serif mt-4 text-xl italic text-foreground">
           Your payments are the proof.
@@ -51,9 +51,22 @@ export function HowItWorksScreen({
           </div>
         ))}
       </div>
-      <PrimaryButton onClick={onContinue} className="mt-8 sm:w-auto sm:px-8">
-        Sign up
-      </PrimaryButton>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <PrimaryButton onClick={onContinue} className="sm:w-auto sm:px-8">
+          Get credit
+        </PrimaryButton>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              window.location.href = "/onboard?step=signup&as=lender";
+            }
+          }}
+          className="font-heading inline-flex items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground"
+        >
+          Fund a file
+        </button>
+      </div>
       {onBack ? (
         <button
           type="button"

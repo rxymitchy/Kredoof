@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useDisconnect } from "wagmi";
+import { type AccountRole } from "@/lib/account-role";
 import { type AuthMode } from "@/components/mobile/auth-form";
 import { AuthScreen } from "@/components/mobile/screens/auth-screen";
 import { BundlingScreen } from "@/components/mobile/screens/bundling-screen";
@@ -48,12 +49,14 @@ export function KredoofApp({
   initialAuthMode = "signup",
   initialError = null,
   resetToken = "",
+  initialRole = "borrower",
 }: {
   startAt?: AppStage;
   initialTab?: MainTab;
   initialAuthMode?: AuthMode;
   initialError?: string | null;
   resetToken?: string;
+  initialRole?: AccountRole;
 }) {
   const router = useRouter();
   const { address } = useAccount();
@@ -125,8 +128,13 @@ export function KredoofApp({
     let cancelled = false;
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((data: { signedIn?: boolean }) => {
+      .then((data: { signedIn?: boolean; role?: AccountRole }) => {
         if (cancelled) return;
+        if (data.signedIn && data.role === "lender") {
+          router.replace("/lend");
+          setSessionReady(true);
+          return;
+        }
         if (
           data.signedIn &&
           (startAt === "auth" || startAt === "connect") &&
@@ -272,7 +280,14 @@ export function KredoofApp({
         initialMode={authMode}
         initialError={initialError}
         resetToken={resetToken}
-        onContinue={() => setStage("connect")}
+          initialRole={initialRole}
+          onContinue={(nextRole) => {
+            if (nextRole === "lender") {
+              router.push("/lend");
+              return;
+            }
+            setStage("connect");
+          }}
         onBack={() => router.push("/")}
       />
     );

@@ -1,3 +1,4 @@
+import { parseAccountRole } from "@/lib/account-role";
 import { NextResponse } from "next/server";
 import { sendRegistrationEmail } from "@/lib/mail";
 import { DuplicateAccountError, registerUser } from "@/lib/persist";
@@ -10,13 +11,14 @@ export async function POST(request: Request) {
     password?: string;
     firstName?: string;
     lastName?: string;
-    name?: string;
+    role?: string;
   };
   const firstName = body.firstName?.trim() ?? "";
   const lastName = body.lastName?.trim() ?? "";
   const email = body.email ?? "";
   const phone = body.phone ?? "";
   const password = body.password ?? "";
+  const role = parseAccountRole(body.role);
   try {
     const data = await registerUser({
       email,
@@ -24,6 +26,7 @@ export async function POST(request: Request) {
       password,
       firstName,
       lastName,
+      role,
     });
     await fetch(`${apiOrigin()}/api/accounts/register`, {
       method: "POST",
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
       name: data.name,
       firstName: data.firstName,
       lastName: data.lastName,
+      role: data.role,
       emailSent,
     });
   } catch (error) {

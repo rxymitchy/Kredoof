@@ -43,12 +43,14 @@ async function createTables(): Promise<void> {
       reset_token_expires BIGINT,
       created_at BIGINT NOT NULL,
       last_score INTEGER,
-      deleted_at BIGINT
+      deleted_at BIGINT,
+      role TEXT NOT NULL DEFAULT 'borrower'
     )
   `;
   // Unique only among live accounts so a deleted email/phone can be reused.
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_live ON users (email) WHERE deleted_at IS NULL`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_phone_live ON users (phone) WHERE deleted_at IS NULL AND phone <> ''`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'borrower'`;
   await sql`CREATE INDEX IF NOT EXISTS users_verify_hash ON users (verify_token_hash)`;
   await sql`CREATE INDEX IF NOT EXISTS users_reset_hash ON users (reset_token_hash)`;
   await sql`

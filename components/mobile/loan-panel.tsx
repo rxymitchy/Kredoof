@@ -142,8 +142,8 @@ export function LoanPanel({
         Approved up to {formatUsdc(amount)}
       </div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        You receive {formatUsdc(received)}. Send back the amount we show you, on
-        time.
+        You receive {formatUsdc(received)}. A lender can also pick up this file
+        on the lender desk. Send back the amount we show you, on time.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
