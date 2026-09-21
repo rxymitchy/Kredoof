@@ -2,31 +2,45 @@
 
 **Got the proof? Get the credit.**
 
-Kredoof turns verified Avalanche wallet payments (USDC / USDT) into a credit summary a lender can read. A business signs up, connects a wallet, and reviews a plain-language report. It is not a licensed lender, a trading app, or a wallet.
+Kredoof looks at money that already moved in a wallet and turns it into a simple yes, no, or how much. A business signs up, connects a wallet, and gets a plain-language result. A lender can pick a business that already qualified and fund it.
+
+It is not a bank, a licensed lender, a trading app, or a wallet. The person who funds the loan earns the interest. Kredoof is paid when a file is taken and when money is actually sent.
 
 - App: https://kredoof.vercel.app
 - Scoring API: https://backend-sigma-silk-84.vercel.app
 
+Scoring today uses USDC and USDT on one chain (Avalanche). More chains later, after the file works.
+
 ---
 
-## Tech stack
+## What you can do
+
+- **Get credit** — Sign up with name, email, Kenyan phone, and password. Connect a wallet or open the sample result. See payments, the score, and a downloadable summary.
+- **Become a lender** — Sign up as a lender. Open the desk, pick a qualified file, lock it, then fund.
+- **Sign in** — Email, phone, or Continue with Google if that Gmail already has a Kredoof account. New people sign up first.
+
+If the wallet has no stablecoin payments on this chain yet, use the sample result.
+
+---
+
+## Tech
 
 | Layer | What we use |
 | --- | --- |
 | Website | Next.js, React, TypeScript, Tailwind CSS |
 | Hosting | Vercel |
-| Accounts | Neon Postgres (production). Local runs can work without a database. |
-| Email | Resend (optional; needed for confirmation and password reset) |
-| Wallets | RainbowKit on Avalanche |
-| Scoring | Python FastAPI app in `backend/` |
+| Accounts | Neon Postgres in production. Local can run without a database. |
+| Email | Resend (optional) |
+| Wallets | RainbowKit |
+| Scoring | Python app in `backend/` |
 
-Node.js 20+ and npm for the website. Python 3.12+ only if you run the scoring API on your machine.
+Node.js 20+ and npm for the website. Python 3.12+ only if you run scoring on your machine.
 
 ---
 
 ## Run the website locally
 
-1. Clone the repo and install:
+1. Clone and install:
 
    ```bash
    git clone https://github.com/rxymitchy/Kredoof.git
@@ -40,13 +54,13 @@ Node.js 20+ and npm for the website. Python 3.12+ only if you run the scoring AP
    cp .env.example .env.local
    ```
 
-   On Windows PowerShell:
+   Windows PowerShell:
 
    ```powershell
    Copy-Item .env.example .env.local
    ```
 
-3. Start the site:
+3. Start:
 
    ```bash
    npm run dev
@@ -54,9 +68,7 @@ Node.js 20+ and npm for the website. Python 3.12+ only if you run the scoring AP
 
 4. Open [http://localhost:3000](http://localhost:3000).
 
-Sign up, sign in, and the sample (no wallet) path work with this. Do not commit `.env.local` or any private keys.
-
-For a production-like local run:
+Do not commit `.env.local` or any private keys.
 
 ```bash
 npm run build
@@ -65,15 +77,9 @@ npm run start
 
 ---
 
-## Optional: scoring API on your machine
+## Optional: scoring on your machine
 
-The live site already uses the hosted API. You only need this if you want scoring against a local Python process.
-
-```bash
-cd backend
-pip install -r requirements.txt
-python -m uvicorn kredoof.api:app --host 127.0.0.1 --port 8471
-```
+The live site already uses the hosted API. See `backend/README.md` if you want to run it locally.
 
 In `.env.local` set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8471`, then restart `npm run dev`.
 
@@ -81,28 +87,18 @@ In `.env.local` set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8471`, then restart `n
 
 ## What to put in `.env.local`
 
-Everything is listed in `.env.example`. A simple local setup can leave almost all of it blank.
+See `.env.example`. For a simple local run you can leave almost everything blank.
 
 | You want to… | Fill in |
 | --- | --- |
-| Run the site on your laptop | Nothing extra, or point `NEXT_PUBLIC_API_URL` at the hosted API if you prefer |
-| Keep login sessions stable | `SESSION_SECRET` (any long random string) |
-| Send confirmation / reset email | Resend key and from-address (`RESEND_API_KEY`, `EMAIL_FROM`) plus `NEXT_PUBLIC_APP_URL` |
-| Store accounts in a real database | `DATABASE_URL` from Neon (used in production) |
-| Use WalletConnect QR pairing | WalletConnect / Reown project ID |
+| Run on your laptop | Nothing extra, or point `NEXT_PUBLIC_API_URL` at the hosted API |
+| Keep login sessions stable | `SESSION_SECRET` |
+| Send confirmation / reset email | Resend key, from-address, and `NEXT_PUBLIC_APP_URL` |
+| Store accounts in a database | `DATABASE_URL` from Neon |
+| WalletConnect QR | WalletConnect / Reown project ID |
+| Continue with Google | `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (keep empty in git) |
 
-Treasury draw on a live wallet needs the matching public address and private key in env. The private key must never go in git, chat, or screenshots.
-
----
-
-## Using the product
-
-1. **Home** — sign up, sign in, or read How It Works.
-2. **Onboard** — create an account (name, email, Kenyan phone, password). Sign in with email or phone.
-3. **Wallet** — connect the wallet you use, or open the sample result.
-4. **Dashboard** — review payments, the score, and a downloadable summary. Draw and repay only work when the treasury is funded on Avalanche.
-
-Scoring needs real USDC or USDT transfers on Avalanche C-Chain for that wallet. If none are found, use the sample result instead.
+Sending money from the demo treasury needs the public address and private key in env. Never put the private key in git, chat, or screenshots.
 
 ---
 
