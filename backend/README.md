@@ -1,107 +1,71 @@
-# Kredoof Backend — ML Underwriting Engine
+# Kredoof scoring API
 
-The machine-learning core of Kredoof: it turns raw on-chain transaction
-history (USDC/USDT transfers) into an explainable, lender-ready credit
-decision. This folder is self-contained and runs independently of the
-frontend.
+This folder is the scoring service. It reads wallet payments (USDC / USDT) and returns a plain credit result the website can show: score, limit, risk in words, and a short report.
+
+It is not the website, and it does not lend money. The live API is https://backend-sigma-silk-84.vercel.app (`app.py` is the Vercel entry).
+
+Today it scores **one chain** (Avalanche C-Chain). More chains later.
 
 ```
-raw transactions → engineered features → risk score (PD) → decision + reason codes + tx-hash evidence
+payments → features → score → yes / no / how much
 ```
 
-## Run it standalone
+---
 
-From inside this `backend/` folder:
+## Run it locally
+
+From this `backend/` folder:
 
 ```bash
 pip install -r requirements.txt
-python -m kredoof.train                       # trains the scorecard (~20s)
-python -m uvicorn kredoof.api:app --port 8471
+python -m kredoof.train
+python -m uvicorn kredoof.api:app --host 127.0.0.1 --port 8471
 ```
 
-Open http://127.0.0.1:8471 for the built-in demo dashboard, or
-http://127.0.0.1:8471/docs for the interactive API docs. (The demo dashboard
-is a development tool for inspecting the engine — the real UI is the React
-frontend.)
+- http://127.0.0.1:8471 — small demo page for the engine
+- http://127.0.0.1:8471/docs — API docs
 
-This folder already lives in the main Kredoof repo. Production is
-https://backend-sigma-silk-84.vercel.app (`app.py` is the Vercel entrypoint).
+The real screens are on the Next.js app. Point the website at this server with `NEXT_PUBLIC_API_URL=http://127.0.0.1:8471`. If the API is down, the site can still show the sample result.
 
-## Connecting the React frontend
+`python -m kredoof.train` builds a local model in `artifacts/` (not in git). Each machine trains its own copy.
 
-CORS allows localhost and `*.vercel.app`. The Next.js app should call:
+---
 
-- `GET  /api/kredoof/profile` — frontend-shaped payload (applicant, txs, score, risk, report)
-- `POST /api/kredoof/profile` — same payload from submitted live transfers
-- `GET  /api/health` — liveness
-- `GET  /api/demo-wallets` — list the six synthetic demo wallets
-- `GET  /api/score/{wallet_id}?engine=ml|heuristic` — raw engine score
-- `POST /api/score` — score real data: `{ wallet_id, transactions: [...], engine }`
-- `GET  /api/model-card` — training metrics and model coefficients
+## What the website calls
 
-Set `NEXT_PUBLIC_API_URL` on the frontend to this server's origin. If the
-API is down, the UI falls back to the sample (mock) profile.
+CORS allows localhost and `*.vercel.app`.
 
-The `artifacts/` directory (trained model) is generated locally by
-`python -m kredoof.train` and is git-ignored, so each environment trains
-its own copy. You can also `pip install -r requirements.txt` (same pins as
-`pyproject.toml`).
+| Call | What it does |
+| --- | --- |
+| `GET /api/health` | Is the API up? |
+| `GET /api/kredoof/profile` | Sample profile the website already knows how to draw |
+| `POST /api/kredoof/profile` | Same shape, from real transfers you send |
+| `GET /api/demo-wallets` | Built-in sample wallets |
+| `GET /api/score/{wallet_id}` | Raw score for a sample wallet |
+| `POST /api/score` | Score a list of transfers |
+| `GET /api/model-card` | Training notes |
 
-## What's inside
+---
 
-| Module | Role |
-|---|---|
-| `kredoof/synth.py` | Synthetic wallet generator across 6 borrower archetypes (steady merchant, growing creator, volatile trader, thin file, risky borrower, wash trader). Stands in for the real Avalanche indexer until it exists — the contract is just the transaction DataFrame schema. |
-| `kredoof/features.py` | Feature engineering (Pandas): 14 underwriting signals across scale, consistency, cash flow, repayment, counterparty network, integrity and tenure. Every feature is traceable to tx hashes. |
-| `kredoof/scorecard.py` | **Phase 1** — heuristic expert scorecard. No training data required; ship this on day one. |
-| `kredoof/model.py` | **Phase 2** — logistic-regression scorecard trained on labelled outcomes. Outputs calibrated probability of default, mapped to a 300–850 score, with exact per-feature reason codes. |
-| `kredoof/decision.py` | Business policy layer: risk bands, credit limits (multiple of median monthly revenue), KES conversion, hard decline overlays (wash trading, insufficient history). Kept out of the model on purpose. |
-| `kredoof/api.py` | FastAPI service: Kredoof profile, `POST /api/score`, demo wallets, model card. |
-| `kredoof/profile.py` | Maps engine output into the JSON the Next.js screens already expect. |
-| `static/index.html` | Demo dashboard: score gauge, eligibility, reason codes, on-chain evidence. |
+## What’s in the folder
 
-## The ML approach (and why it's staged)
+| File | Role |
+| --- | --- |
+| `kredoof/synth.py` | Fake wallets for local demos until a live indexer is wired |
+| `kredoof/features.py` | Turns payments into signals (how often money moves, who they pay, warning signs) |
+| `kredoof/scorecard.py` | Simple rules score when there is no real loan history yet |
+| `kredoof/model.py` | Learned score once there are labelled outcomes |
+| `kredoof/decision.py` | Limit and yes/no policy, kept separate from the model |
+| `kredoof/profile.py` | JSON shape the website expects |
+| `kredoof/api.py` | FastAPI routes |
+| `static/index.html` | Engine demo page |
 
-**Phase 1 — heuristic scorecard (now).** You have no labelled loan outcomes
-yet, so there is nothing to train on. Ship a documented, rules-based
-scorecard. Its real job is to start the data flywheel: every loan it approves
-produces a repaid/defaulted label.
+---
 
-**Phase 2 — logistic regression scorecard (first few hundred outcomes).**
-Swap heuristic weights for learned ones, keeping the same features and the
-same explanation contract. Logistic regression is the industry standard for
-underwriting because it is calibrated (real PDs, which pricing and the 1%
-success fee need), auditable, and self-explaining: with standardised inputs,
-each feature's contribution to the decision is just coefficient × value.
+## How scoring is meant to grow
 
-**Phase 3 — gradient boosting challenger (thousands of outcomes).**
-XGBoost/LightGBM typically adds a few AUC points. Run it as a challenger and
-only promote it once SHAP-based reason codes are in place.
+There are not enough real repaid loans to train on yet. So the live path can use a documented rules score first. Every real loan that later repays or defaults becomes a label. Then the same features can be trained properly.
 
-**The LLM (OpenAI API) never sets the score.** The score must be
-deterministic and reproducible. The agent's job is orchestration (fetch →
-verify → feature-compute → score), narrative explanation of an already-made
-decision, and continuous monitoring — re-scoring on new transactions and
-flagging when a wallet crosses a credit threshold.
+The score itself should stay a number you can repeat. A language model must not set the score.
 
-Fraud/integrity signals (circular flow, spike detection) act as **hard policy
-overlays**, not score inputs alone — a wash trader can look statistically
-great, so no score is allowed to override the flag.
-
-## Current training metrics
-
-Trained on 1,200 synthetic wallets (~560k transactions), 25% held-out test
-set: **AUC 0.79, KS 0.51**. These numbers validate the pipeline, not the
-model — the labels are synthetic. Real metrics come from real repayment
-outcomes, which is exactly what the Phase-1 scorecard exists to collect.
-
-## Next steps toward production
-
-1. Replace `synth.py` with a real Avalanche C-Chain indexer (ERC-20 transfer
-   logs for USDC/USDT via RPC or a data API), keeping the same DataFrame schema.
-2. Persist features + decisions + tx-hash evidence in PostgreSQL.
-3. Log every decision (features, model version, score) for backtesting and audit.
-4. Add the monitoring loop: re-score wallets on new activity, alert on
-   threshold crossings — the "agentic, continuous underwriting" differentiator.
-5. Once ~200+ real loan outcomes exist, retrain Phase 2 on real labels and
-   validate with out-of-time backtesting, calibration curves and PSI drift checks.
+Local training numbers on fake wallets only check that the pipeline runs. They are not proof the score works in the real world.
