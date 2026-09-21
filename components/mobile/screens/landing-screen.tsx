@@ -23,7 +23,7 @@ export function LandingScreen() {
       <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-            Agentic credit underwriting
+            Credit from your payments
           </p>
           <h1 className="font-heading mt-3 text-4xl font-extrabold tracking-[0.08em] text-foreground sm:text-5xl lg:text-6xl">
             KREDOOF
@@ -32,13 +32,12 @@ export function LandingScreen() {
             Got the proof? Get the credit.
           </p>
           <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-            Turn your verified blockchain transaction history into a credit
-            profile lenders can understand.
+            We look at money that already moved in your wallet and turn it into
+            a simple yes, no, or how much.
           </p>
           <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-            Many businesses have real financial activity but lack the collateral
-            or traditional credit history lenders require. Kredoof turns
-            verified on-chain activity into evidence lenders can use.
+            You do not need bank papers or M-Pesa statements. If you want to
+            lend, you can pick a business that already qualified.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
@@ -61,16 +60,9 @@ export function LandingScreen() {
               }
               className="font-heading inline-flex w-full items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground sm:w-auto"
             >
-              Fund a file
+              {signedIn && role === "lender" ? "Your desk" : "Become a lender"}
             </Link>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Borrowers build a file from wallet payments. Lenders pay KSh 100 for an exclusive
-            qualified file, then fund.{" "}
-            <Link href="/how" className="font-semibold text-mint-deep underline-offset-4 hover:underline">
-              How it works
-            </Link>
-          </p>
           <p className="mt-4 text-sm text-muted-foreground">
             {signedIn ? (
               <>
@@ -104,10 +96,10 @@ export function LandingScreen() {
 
         <div className="rounded-3xl border border-hairline bg-white p-6 shadow-[0_24px_60px_-28px_rgba(20,23,28,0.18)] sm:p-8">
           <p className="font-heading text-sm font-bold text-foreground">
-            The transaction is the evidence
+            Your payments are the proof
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {["Wallet", "Verified activity", "Credit decision"].map(
+            {["Connect a wallet", "We check the money", "You get a result"].map(
               (step, i) => (
                 <div
                   key={step}
@@ -132,7 +124,7 @@ export function LandingScreen() {
             <div className="text-center">
               <ShieldCheck className="mx-auto text-[#1F5A34]" size={36} />
               <p className="font-heading mt-3 text-sm font-bold text-[#123A22]">
-                Avalanche · USDC / USDT
+                Real wallet payments
               </p>
               <p className="mt-1 text-xs text-[#215B36]/80">
                 No bank or M-Pesa statements
