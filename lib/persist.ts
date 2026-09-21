@@ -12,6 +12,8 @@ import {
   validateLogin,
   validateSignup,
 } from "@/lib/account-rules";
+import type { MarketplaceFile } from "@/lib/marketplace-file";
+import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { dbEnabled, ensureSchema, getSql } from "@/lib/db";
 import { isOpenLoanStatus, LEAD_FEE_KES } from "@/lib/loan-terms";
 
@@ -35,6 +37,7 @@ export type StoredUser = {
   createdAt: number;
   lastScore?: number | null;
   deletedAt?: number | null;
+  role?: AccountRole;
 };
 
 export type StoredLoan = {
@@ -64,7 +67,7 @@ export type StoredLead = {
   limit_kes?: number;
   fee_kes: number;
   payer: "lender";
-  status: "offered" | "funded";
+  status: "offered" | "claimed" | "funded";
   lender?: string;
   loan_id?: string | null;
   created_at: number;
@@ -168,6 +171,7 @@ function normalizeUser(raw: StoredUser): StoredUser {
     firstName,
     lastName,
     name: raw.name || displayName(firstName, lastName),
+    role: parseAccountRole(raw.role),
   };
 }
 
@@ -210,6 +214,7 @@ type UserRow = {
   created_at: string | number;
   last_score: number | null;
   deleted_at: string | number | null;
+  role: string | null;
 };
 
 function num(value: string | number | null | undefined): number | null {
@@ -235,6 +240,7 @@ function userFromRow(row: UserRow): StoredUser {
     createdAt: Number(row.created_at),
     lastScore: row.last_score,
     deletedAt: num(row.deleted_at),
+    role: parseAccountRole(row.role),
   });
 }
 
@@ -269,7 +275,12 @@ function leadFromRow(row: Record<string, unknown>): StoredLead {
     limit_kes: row.limit_kes == null ? undefined : Number(row.limit_kes),
     fee_kes: Number(row.fee_kes),
     payer: "lender",
-    status: row.status === "funded" ? "funded" : "offered",
+    status:
+      row.status === "funded"
+        ? "funded"
+        : row.status === "claimed"
+          ? "claimed"
+          : "offered",
     lender: (row.lender as string | undefined) ?? undefined,
     loan_id: (row.loan_id as string | null) ?? null,
     created_at: Number(row.created_at),
@@ -342,14 +353,14 @@ async function insertUserRow(user: StoredUser): Promise<void> {
     INSERT INTO users (
       id, email, phone, password_hash, first_name, last_name, name, wallet,
       email_verified, verify_token_hash, verify_token_expires,
-      reset_token_hash, reset_token_expires, created_at, last_score, deleted_at
+      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role
     ) VALUES (
       ${user.id}, ${user.email}, ${user.phone}, ${user.passwordHash},
       ${user.firstName}, ${user.lastName}, ${user.name}, ${user.wallet ?? null},
       ${Boolean(user.emailVerified)}, ${user.verifyTokenHash ?? null},
       ${user.verifyTokenExpires ?? null}, ${user.resetTokenHash ?? null},
       ${user.resetTokenExpires ?? null}, ${user.createdAt}, ${user.lastScore ?? null},
-      ${user.deletedAt ?? null}
+      ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}
     )
   `;
 }
@@ -371,7 +382,8 @@ async function updateUserRow(user: StoredUser): Promise<void> {
       reset_token_hash = ${user.resetTokenHash ?? null},
       reset_token_expires = ${user.resetTokenExpires ?? null},
       last_score = ${user.lastScore ?? null},
-      deleted_at = ${user.deletedAt ?? null}
+      deleted_at = ${user.deletedAt ?? null},
+      role = ${parseAccountRole(user.role)}
     WHERE id = ${user.id}
   `;
 }
@@ -564,6 +576,7 @@ export async function registerUser(input: {
   password: string;
   firstName: string;
   lastName: string;
+  role?: AccountRole;
 }): Promise<{
   email: string;
   phone: string;
@@ -571,6 +584,7 @@ export async function registerUser(input: {
   firstName: string;
   lastName: string;
   verifyToken: string;
+  role: AccountRole;
 }> {
   const error = validateSignup(input);
   if (error) throw new Error(error);
@@ -579,6 +593,7 @@ export async function registerUser(input: {
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const name = displayName(firstName, lastName);
+  const role = parseAccountRole(input.role);
   // Live email and phone must be unique (Postgres indexes, or Blob index files).
   if (await getUserByEmail(email)) throw new DuplicateAccountError("email");
   if (await getUserByPhone(phone)) throw new DuplicateAccountError("phone");
@@ -599,6 +614,7 @@ export async function registerUser(input: {
     resetTokenHash: null,
     resetTokenExpires: null,
     createdAt: Date.now(),
+    role,
   };
   if (await usingDb()) {
     try {
@@ -607,7 +623,7 @@ export async function registerUser(input: {
       if (isAlreadyExistsError(err)) throw new DuplicateAccountError(duplicateField(err));
       throw err;
     }
-    return { email, phone, name, firstName, lastName, verifyToken: verify.token };
+    return { email, phone, name, firstName, lastName, verifyToken: verify.token, role };
   }
   // Blob path: create email/phone pointer files first so two signups cannot race.
   try {
@@ -628,7 +644,7 @@ export async function registerUser(input: {
     { id, email, expires: verify.expires },
     "update"
   ).catch(() => null);
-  return { email, phone, name, firstName, lastName, verifyToken: verify.token };
+  return { email, phone, name, firstName, lastName, verifyToken: verify.token, role };
 }
 
 export async function loginUser(
@@ -641,6 +657,7 @@ export async function loginUser(
   firstName: string;
   lastName: string;
   wallet?: string | null;
+  role: AccountRole;
 }> {
   const error = validateLogin({ identifier: identifierRaw, password });
   if (error) {
@@ -669,6 +686,7 @@ export async function loginUser(
     firstName: user.firstName,
     lastName: user.lastName,
     wallet: user.wallet,
+    role: parseAccountRole(user.role),
   };
 }
 
@@ -996,39 +1014,124 @@ export async function markLeadFunded(input: {
   email?: string | null;
   wallet: string;
   loanId: string;
+  leadId?: string | null;
 }): Promise<StoredLead | null> {
   const email = input.email ? normalizeEmail(input.email) : "";
   const wallet = input.wallet.toLowerCase();
-  if (await usingDb()) {
-    const sql = getSql();
-    const rows = (await sql`
-      SELECT * FROM leads
-      WHERE status = 'offered'
-        AND (
-          (${email} <> '' AND email = ${email})
-          OR wallet = ${wallet}
-        )
-      ORDER BY created_at DESC
-      LIMIT 1
-    `) as Record<string, unknown>[];
-    if (!rows[0]) return null;
-    const lead = leadFromRow(rows[0]);
-    lead.status = "funded";
-    lead.loan_id = input.loanId;
-    await upsertLeadRow(lead);
-    return lead;
-  }
   const leads = await listLeads();
-  const lead = leads.find((item) => {
-    if (item.status !== "offered") return false;
-    const matchEmail = email && item.email && normalizeEmail(item.email) === email;
-    const matchWallet = item.wallet.toLowerCase() === wallet;
-    return Boolean(matchEmail || matchWallet);
-  });
+  const lead = input.leadId
+    ? leads.find((item) => item.id === input.leadId) ?? null
+    : leads.find((item) => {
+        if (item.status === "funded") return false;
+        const matchEmail = email && item.email && normalizeEmail(item.email) === email;
+        const matchWallet = item.wallet.toLowerCase() === wallet;
+        return Boolean(matchEmail || matchWallet);
+      }) ?? null;
   if (!lead) return null;
   lead.status = "funded";
   lead.loan_id = input.loanId;
+  if (await usingDb()) {
+    await upsertLeadRow(lead);
+    return lead;
+  }
   await writeJson(LEADS_PATH, leads);
+  return lead;
+}
+
+function marketplaceCard(
+  lead: StoredLead,
+  viewer: string,
+  extra: { borrowerName?: string } = {}
+): MarketplaceFile {
+  const mine = Boolean(lead.lender && lead.lender === viewer);
+  const claimed = lead.status === "claimed" || lead.status === "funded";
+  return {
+    id: lead.id,
+    score: lead.score,
+    limit_kes: lead.limit_kes,
+    fee_kes: lead.fee_kes,
+    status: lead.status,
+    created_at: lead.created_at,
+    exclusive: claimed,
+    borrowerName: mine ? extra.borrowerName : undefined,
+    wallet: mine ? lead.wallet : undefined,
+  };
+}
+
+export async function listLenderMarketplace(lenderEmail: string): Promise<{
+  open: MarketplaceFile[];
+  mine: MarketplaceFile[];
+}> {
+  const viewer = normalizeEmail(lenderEmail);
+  const leads = await listLeads();
+  const open = leads
+    .filter((lead) => lead.status === "offered")
+    .map((lead) => marketplaceCard(lead, viewer));
+  const mineLeads = leads.filter(
+    (lead) =>
+      (lead.status === "claimed" || lead.status === "funded") &&
+      lead.lender === viewer
+  );
+  const mine: MarketplaceFile[] = [];
+  for (const lead of mineLeads) {
+    const borrower = lead.email ? await getUserByEmail(lead.email) : null;
+    mine.push(
+      marketplaceCard(lead, viewer, {
+        borrowerName: borrower?.name,
+      })
+    );
+  }
+  return { open, mine };
+}
+
+export async function claimLeadExclusive(
+  leadId: string,
+  lenderEmail: string
+): Promise<StoredLead> {
+  const viewer = normalizeEmail(lenderEmail);
+  const leads = await listLeads();
+  const lead = leads.find((item) => item.id === leadId);
+  if (!lead) throw new Error("That file is gone");
+  if (lead.status === "funded") throw new Error("Already funded");
+  if (lead.status === "claimed" && lead.lender && lead.lender !== viewer) {
+    throw new Error("Another lender already took this file");
+  }
+  if (lead.status === "claimed" && lead.lender === viewer) return lead;
+  lead.status = "claimed";
+  lead.lender = viewer;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      UPDATE leads
+      SET status = 'claimed', lender = ${viewer}
+      WHERE id = ${leadId} AND status = 'offered'
+      RETURNING *
+    `) as Record<string, unknown>[];
+    if (!rows[0]) {
+      const current = (await sql`SELECT * FROM leads WHERE id = ${leadId} LIMIT 1`) as Record<
+        string,
+        unknown
+      >[];
+      const now = current[0] ? leadFromRow(current[0]) : null;
+      if (now?.status === "claimed" && now.lender === viewer) return now;
+      throw new Error("Another lender already took this file");
+    }
+    return leadFromRow(rows[0]);
+  }
+  await writeJson(LEADS_PATH, leads);
+  return lead;
+}
+
+export async function getClaimedLeadForLender(
+  leadId: string,
+  lenderEmail: string
+): Promise<StoredLead | null> {
+  const viewer = normalizeEmail(lenderEmail);
+  const leads = await listLeads();
+  const lead = leads.find((item) => item.id === leadId) ?? null;
+  if (!lead) return null;
+  if (lead.lender !== viewer) return null;
+  if (lead.status !== "claimed" && lead.status !== "funded") return null;
   return lead;
 }
 

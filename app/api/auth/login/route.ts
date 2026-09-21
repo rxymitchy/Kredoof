@@ -1,3 +1,4 @@
+import { parseAccountRole } from "@/lib/account-role";
 import { NextResponse } from "next/server";
 import { LoginError, loginUser } from "@/lib/persist";
 import { apiOrigin, establishSession } from "@/lib/session";
@@ -9,6 +10,7 @@ type Account = {
   firstName?: string;
   lastName?: string;
   wallet?: string | null;
+  role?: string;
 };
 
 function messageFromBody(body: unknown): string {
@@ -93,8 +95,9 @@ export async function POST(request: Request) {
       phone: data.phone,
       name: data.name,
       wallet: data.wallet,
+      role: parseAccountRole(data.role),
     });
-    return NextResponse.json(data);
+    return NextResponse.json({ ...data, role: parseAccountRole(data.role) });
   } catch (error) {
     const field = error instanceof LoginError ? error.field : "email";
     const message =

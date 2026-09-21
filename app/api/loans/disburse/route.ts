@@ -1,57 +1,18 @@
 import { NextResponse } from "next/server";
 import {
-  createWalletClient,
-  http,
-  parseUnits,
-  type Hex,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { avalanche } from "viem/chains";
-import { USDC_AVALANCHE } from "@/lib/constants";
-import {
   hasOpenLoan,
   hasRepaidLoan,
   getUserByEmail,
-  markLeadFunded,
-  newLoanId,
-  recordLoan,
-  updateLoan,
 } from "@/lib/persist";
 import { apiOrigin, getSession } from "@/lib/session";
 import {
-  DAILY_INTEREST_RATE,
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
   allowsLongTerm,
-  netDisbursed,
-  originationFee,
-  repaymentDue,
 } from "@/lib/loan-terms";
-
-const ERC20_TRANSFER = [
-  {
-    type: "function",
-    name: "transfer",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ type: "bool" }],
-  },
-] as const;
+import { disburseFromTreasury, treasuryErrorMessage } from "@/lib/treasury-disburse";
 
 export async function POST(request: Request) {
-  const key = process.env.TREASURY_PRIVATE_KEY?.trim();
-  if (!key) {
-    return NextResponse.json(
-      {
-        error:
-          "Treasury key missing. TREASURY_PRIVATE_KEY must be set on the server.",
-      },
-      { status: 503 }
-    );
-  }
   const body = (await request.json()) as {
     to?: `0x${string}`;
     amountUsdc?: number;
@@ -94,50 +55,13 @@ export async function POST(request: Request) {
       );
     }
   }
-  const repayAmount = repaymentDue(body.amountUsdc, termDays);
-  const sent = netDisbursed(body.amountUsdc);
-  const origination = originationFee(body.amountUsdc);
-  const pk = (key.startsWith("0x") ? key : `0x${key}`) as Hex;
-  const account = privateKeyToAccount(pk);
-  const client = createWalletClient({
-    account,
-    chain: avalanche,
-    transport: http("https://api.avax.network/ext/bc/C/rpc"),
-  });
   try {
-    const hash = await client.writeContract({
-      address: USDC_AVALANCHE,
-      abi: ERC20_TRANSFER,
-      functionName: "transfer",
-      args: [body.to, parseUnits(sent.toFixed(6), 6)],
+    const { hash, loan } = await disburseFromTreasury({
+      to: body.to,
+      amountUsdc: body.amountUsdc,
+      termDays,
+      borrowerEmail: session.email ?? body.email,
     });
-    const opened = {
-      id: newLoanId(),
-      wallet: body.to.toLowerCase(),
-      amount_usdc: body.amountUsdc,
-      net_usdc: sent,
-      origination_usdc: origination,
-      app_fee_usdc: 0,
-      lead_id: null as string | null,
-      repay_usdc: repayAmount,
-      term_days: termDays,
-      daily_rate: DAILY_INTEREST_RATE,
-      due_at: Date.now() + termDays * 24 * 60 * 60 * 1000,
-      status: "drawn",
-      disburse_tx: hash,
-      created_at: Date.now(),
-      email: session.email ?? body.email,
-    };
-    await recordLoan(opened).catch(() => null);
-    const lead = await markLeadFunded({
-      email: session.email ?? body.email,
-      wallet: body.to,
-      loanId: opened.id,
-    }).catch(() => null);
-    if (lead) {
-      opened.lead_id = lead.id;
-      await updateLoan(opened.id, { lead_id: lead.id }).catch(() => null);
-    }
     await fetch(`${apiOrigin()}/api/loans`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -148,28 +72,19 @@ export async function POST(request: Request) {
       }),
     })
       .then(async (r) => {
-        const loan = await r.json();
-        if (loan?.id) {
-          await fetch(`${apiOrigin()}/api/loans/${loan.id}/disbursed`, {
+        const recorded = await r.json();
+        if (recorded?.id) {
+          await fetch(`${apiOrigin()}/api/loans/${recorded.id}/disbursed`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tx_hash: hash }),
           });
-          await updateLoan(opened.id, { id: loan.id }).catch(() => null);
         }
       })
       .catch(() => null);
-    return NextResponse.json({ hash, loan: opened });
+    return NextResponse.json({ hash, loan });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      {
-        error:
-          message.includes("insufficient") || message.includes("exceeds")
-            ? "Treasury has no USDC (or no AVAX for gas). Send Avalanche USDC to the treasury wallet first."
-            : message,
-      },
-      { status: 502 }
-    );
+    const { error, status } = treasuryErrorMessage(err);
+    return NextResponse.json({ error }, { status });
   }
 }

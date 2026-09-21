@@ -1,5 +1,6 @@
 "use client";
 
+import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { Lock, Mail, Phone, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PrimaryButton } from "@/components/mobile/ui";
@@ -20,14 +21,17 @@ export function AuthForm({
   initialMode = "signup",
   initialError = null,
   resetToken = "",
+  initialRole = "borrower",
   onContinue,
 }: {
   initialMode?: AuthMode;
   initialError?: string | null;
   resetToken?: string;
-  onContinue: () => void;
+  initialRole?: AccountRole;
+  onContinue: (role: AccountRole) => void;
 }) {
   const [mode, setAuthMode] = useState<AuthMode>(initialMode);
+  const [role, setRole] = useState<AccountRole>(parseAccountRole(initialRole));
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [identifier, setIdentifier] = useState("");
@@ -52,6 +56,10 @@ export function AuthForm({
   useEffect(() => {
     setAuthMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    setRole(parseAccountRole(initialRole));
+  }, [initialRole]);
 
   const firstNameError = touched.firstName
     ? nameHint(firstName, "first name")
@@ -166,6 +174,7 @@ export function AuthForm({
         password,
         firstName,
         lastName,
+        role,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -196,7 +205,7 @@ export function AuthForm({
       );
       return;
     }
-    onContinue();
+    onContinue(parseAccountRole(data.role) || role);
   }
 
   const submitLabel =
@@ -246,6 +255,35 @@ export function AuthForm({
           </p>
         </div>
       )}
+      {mode === "signup" ? (
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+            I am here to
+          </p>
+          <div className="flex rounded-[14px] bg-[#F3F5F1] p-1">
+            {(
+              [
+                ["borrower", "Get credit"],
+                ["lender", "Fund files"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRole(value)}
+                className={cn(
+                  "font-heading flex-1 rounded-[10px] py-2.5 text-sm font-bold",
+                  role === value
+                    ? "bg-white text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                    : "text-[#a9b0a2]"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {mode === "signup" ? (
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
