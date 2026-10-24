@@ -28,6 +28,7 @@ import {
   formatKesOfUsdc,
   formatTokenAmount,
   formatUsdc,
+  formatUsdt,
   shortenAddress,
   usdcFromKes,
   explorerTxUrl,
@@ -397,7 +398,11 @@ export function MainScreen({
                     }}
                   >
                     {t.direction === "in" ? "+" : "−"}
-                    {formatUsdc(t.amount)}
+                    {t.amount.toLocaleString("en-KE", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    {t.asset}
                   </div>
                   <div className="text-xs text-[#a9b0a2]">
                     {formatKesOfUsdc(t.amount)}
@@ -504,7 +509,7 @@ export function MainScreen({
                       </span>
                     </div>
                     <div className="font-heading text-2xl font-extrabold">
-                      {formatUsdc(ceilingUsdc)}
+                      {formatUsdt(ceilingUsdc)}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
                       {formatKesOfUsdc(ceilingUsdc)}
@@ -623,7 +628,7 @@ export function MainScreen({
                       </div>
                       <div className="text-right">
                         <div className="text-[11px] font-semibold">
-                          {formatUsdc(ceilingUsdc)}
+                          {formatUsdt(ceilingUsdc)}
                         </div>
                         <div className="text-[10px] text-muted-foreground">
                           {formatKesOfUsdc(ceilingUsdc)}

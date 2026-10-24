@@ -25,6 +25,14 @@ export function formatUsdc(amount: number): string {
   })} USDC`;
 }
 
+/** Loan principal and repayment — always USDT on Avalanche. */
+export function formatUsdt(amount: number): string {
+  return `${amount.toLocaleString("en-KE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USDT`;
+}
+
 export function formatKesOfUsdc(usdc: number): string {
   return `≈ KES ${Math.round(usdc * KES_PER_USDC).toLocaleString("en-KE")}`;
 }
@@ -64,4 +72,8 @@ export function explorerTxUrl(hash: string): string {
 
 export function usdcFromKes(kes: number): number {
   return Math.round((kes / KES_PER_USDC) * 100) / 100;
+}
+
+export function usdtFromKes(kes: number): number {
+  return usdcFromKes(kes);
 }

@@ -6,7 +6,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { avalanche } from "viem/chains";
-import { USDC_AVALANCHE } from "@/lib/constants";
+import { USDT_AVALANCHE } from "@/lib/constants";
 import {
   markLeadFunded,
   newLoanId,
@@ -34,6 +34,7 @@ const ERC20_TRANSFER = [
   },
 ] as const;
 
+/** amountUsdc is the stablecoin size (6 decimals). The token sent is Avalanche USDT. */
 export async function disburseFromTreasury(input: {
   to: `0x${string}`;
   amountUsdc: number;
@@ -58,7 +59,7 @@ export async function disburseFromTreasury(input: {
     transport: http("https://api.avax.network/ext/bc/C/rpc"),
   });
   const hash = await client.writeContract({
-    address: USDC_AVALANCHE,
+    address: USDT_AVALANCHE,
     abi: ERC20_TRANSFER,
     functionName: "transfer",
     args: [input.to, parseUnits(sent.toFixed(6), 6)],
@@ -102,7 +103,7 @@ export function treasuryErrorMessage(err: unknown): { error: string; status: num
   if (message.includes("insufficient") || message.includes("exceeds")) {
     return {
       error:
-        "Treasury has no USDC (or no AVAX for gas). Send Avalanche USDC to the treasury wallet first.",
+        "Treasury has no USDT (or no AVAX for gas). Send Avalanche USDT to the treasury wallet first.",
       status: 502,
     };
   }

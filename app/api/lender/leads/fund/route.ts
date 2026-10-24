@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseAccountRole } from "@/lib/account-role";
 import { getClaimedLeadForLender, hasOpenLoan } from "@/lib/persist";
-import { usdcFromKes } from "@/lib/format";
+import { usdtFromKes } from "@/lib/format";
 import {
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   if (lead.status === "funded") {
     return NextResponse.json({ error: "Already funded" }, { status: 409 });
   }
-  const amountUsdc = usdcFromKes(lead.limit_kes ?? 0);
+  const amountUsdc = usdtFromKes(lead.limit_kes ?? 0);
   if (amountUsdc <= 0) {
     return NextResponse.json({ error: "This file has no amount to fund" }, { status: 400 });
   }
