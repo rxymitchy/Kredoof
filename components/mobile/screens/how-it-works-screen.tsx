@@ -6,11 +6,11 @@ import { PrimaryButton } from "@/components/mobile/ui";
 
 const STEPS = [
   "A business signs up and connects a wallet",
-  "We look at real USDC/USDT payments",
+  "We look at real wallet payments (USDT and USDC on Avalanche)",
   "If they qualify, the file lands on the lender desk",
   "A lender pays KSh 100 for that exclusive file",
-  "The lender funds. The borrower receives the amount we show, minus 1%",
-  "The borrower pays back the amount we show, on time. Daily interest goes to the funder",
+  "The lender puts in KSh. We convert and send USDT to the borrower",
+  "The borrower pays back USDT on time. Daily interest goes to the funder",
 ];
 
 export function HowItWorksScreen({

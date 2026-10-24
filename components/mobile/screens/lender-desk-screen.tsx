@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PrimaryButton } from "@/components/mobile/ui";
-import { formatKsh, formatKesOfUsdc, formatUsdc, usdcFromKes } from "@/lib/format";
+import { formatKsh, formatKesOfUsdc, formatUsdt, usdtFromKes } from "@/lib/format";
 import { DAILY_INTEREST_LABEL, LEAD_FEE_KES, SHORT_TERM_DAYS } from "@/lib/loan-terms";
 import type { MarketplaceFile } from "@/lib/marketplace-file";
 
@@ -21,7 +21,8 @@ function FileCard({
   onClaim: (id: string) => void;
   onFund: (id: string) => void;
 }) {
-  const amount = usdcFromKes(file.limit_kes ?? 0);
+  const amount = usdtFromKes(file.limit_kes ?? 0);
+  const kes = file.limit_kes ?? 0;
   return (
     <div className="rounded-2xl border border-hairline bg-white px-5 py-4">
       <div className="flex items-start justify-between gap-3">
@@ -30,8 +31,8 @@ function FileCard({
             {mine && file.borrowerName ? file.borrowerName : "Qualified file"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Score {file.score ?? "—"} · up to {formatKsh(file.limit_kes ?? 0)}
-            {amount > 0 ? ` · ${formatUsdc(amount)}` : ""}
+            Score {file.score ?? "—"} · you put in {formatKsh(kes)}
+            {amount > 0 ? ` · they get ${formatUsdt(amount)}` : ""}
           </p>
           {mine && file.wallet ? (
             <p className="font-mono mt-1 text-[11px] text-muted-foreground">{file.wallet}</p>
@@ -46,8 +47,9 @@ function FileCard({
         </span>
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        Exclusive file: you pay {formatKsh(file.fee_kes || LEAD_FEE_KES)}. Daily interest{" "}
-        {DAILY_INTEREST_LABEL} goes to the funder. Kredoof takes 1% only when you fund.
+        You think in shillings. The borrower receives USDT on Avalanche at the listed
+        rate. Exclusive file: {formatKsh(file.fee_kes || LEAD_FEE_KES)}. Daily interest{" "}
+        {DAILY_INTEREST_LABEL} goes to you. Kredoof takes 1% only when you fund.
       </p>
       {!mine ? (
         <PrimaryButton
@@ -65,12 +67,13 @@ function FileCard({
           disabled={busyId === file.id}
           onClick={() => onFund(file.id)}
         >
-          {busyId === file.id ? "Please wait…" : `Fund ${formatUsdc(amount)}`}
+          {busyId === file.id ? "Please wait…" : `Send ${formatKsh(kes)} as USDT`}
         </PrimaryButton>
       )}
       {mine && amount > 0 && file.status !== "funded" ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Borrower receives {formatUsdc(amount)} net of 1%. They repay over {SHORT_TERM_DAYS} days
+          We convert your {formatKsh(kes)} to {formatUsdt(amount)} and send it. Borrower
+          receives that minus 1%, and repays USDT over {SHORT_TERM_DAYS} days
           ({formatKesOfUsdc(amount)}).
         </p>
       ) : null}
@@ -165,9 +168,9 @@ export function LenderDeskScreen() {
           Qualified files
         </h1>
         <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
-          Borrowers who qualify land here. Pay {formatKsh(LEAD_FEE_KES)} for an exclusive file,
-          then fund. You are not a licensed lender through Kredoof — this desk is the missing
-          half of the loop.
+          Borrowers who qualify land here. You put in KSh. They get USDT on Avalanche.
+          Pay {formatKsh(LEAD_FEE_KES)} for an exclusive file, then fund. You are not a
+          licensed lender through Kredoof.
         </p>
         {error ? <p className="mt-4 text-sm text-[#C24545]">{error}</p> : null}
       </div>

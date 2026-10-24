@@ -2,8 +2,10 @@
 export const APPLICANT_WALLET =
   "0x7A3d4e8f12b90c45a67e81d93c4f00aabbcc91F2" as const;
 
-/** Display rate only. Not a live FX feed. */
+/** Display rate only. Not a live FX feed. Loans are USDT; KES is how lenders think. */
 export const KES_PER_USDC = 129.4;
+export const KES_PER_USDT = KES_PER_USDC;
+export const LOAN_ASSET = "USDT" as const;
 
 export const NETWORK_LABEL = "Avalanche" as const;
 

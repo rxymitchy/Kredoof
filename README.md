@@ -9,14 +9,14 @@ It is not a bank, a licensed lender, a trading app, or a wallet. The person who 
 - App: https://kredoof.vercel.app
 - Scoring API: https://backend-sigma-silk-84.vercel.app
 
-Scoring today uses USDC and USDT on one chain (Avalanche). More chains later, after the file works.
+Scoring today uses USDC and USDT on one chain (Avalanche). Loans send and repay **USDT**. A lender thinks in KSh; we convert at the listed rate. More chains later, after the file works.
 
 ---
 
 ## What you can do
 
 - **Get credit** — Sign up with name, email, Kenyan phone, and password. Connect a wallet or open the sample result. See payments, the score, and a downloadable summary.
-- **Become a lender** — Sign up as a lender. Open the desk, pick a qualified file, lock it, then fund.
+- **Become a lender** — Sign up as a lender. Open the desk, pick a qualified file, lock it, then fund in KSh. The borrower receives USDT.
 - **Sign in** — Email, phone, or Continue with Google if that Gmail already has a Kredoof account. New people sign up first.
 
 If the wallet has no stablecoin payments on this chain yet, use the sample result.

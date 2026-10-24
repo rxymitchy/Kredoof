@@ -4,8 +4,8 @@ import { parseUnits } from "viem";
 import { useAccount, useWriteContract } from "wagmi";
 import { useMemo, useState } from "react";
 import { PrimaryButton } from "@/components/mobile/ui";
-import { USDC_AVALANCHE, KREDOOF_TREASURY } from "@/lib/constants";
-import { explorerTxUrl, formatUsdc } from "@/lib/format";
+import { USDT_AVALANCHE, KREDOOF_TREASURY } from "@/lib/constants";
+import { explorerTxUrl, formatKesOfUsdc, formatUsdt } from "@/lib/format";
 import {
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
@@ -96,7 +96,7 @@ export function LoanPanel({
     const got = data.loan?.net_usdc ?? received;
     const pay = data.loan?.repay_usdc ?? due;
     setStatus(
-      `You will receive ${formatUsdc(got)}. Send back ${formatUsdc(pay)} in ${termDays} days.`
+      `You will receive ${formatUsdt(got)}. Send back ${formatUsdt(pay)} in ${termDays} days.`
     );
     onLoanChange?.();
   }
@@ -112,7 +112,7 @@ export function LoanPanel({
     }
     setStatus(null);
     const tx = await writeContractAsync({
-      address: USDC_AVALANCHE,
+      address: USDT_AVALANCHE,
       abi: ERC20_TRANSFER,
       functionName: "transfer",
       args: [treasury, parseUnits(repayAmount.toFixed(6), 6)],
@@ -139,11 +139,12 @@ export function LoanPanel({
     <div className="mt-4 rounded-2xl border border-hairline bg-[#FAFBF9] p-4 text-left">
       <div className="font-heading text-sm font-bold">Your loan</div>
       <div className="mt-3 text-sm font-semibold">
-        Approved up to {formatUsdc(amount)}
+        Approved up to {formatUsdt(amount)} ({formatKesOfUsdc(amount)})
       </div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        You receive {formatUsdc(received)}. A lender can also pick up this file
-        on the lender desk. Send back the amount we show you, on time.
+        You receive {formatUsdt(received)} on Avalanche. A lender puts in
+        shillings; we convert at the listed rate and send USDT. Send back USDT
+        on time.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
@@ -159,7 +160,7 @@ export function LoanPanel({
         >
           Pay in 16 days
           <div className="mt-1 font-normal text-muted-foreground">
-            Send back {formatUsdc(repaymentDue(amount, SHORT_TERM_DAYS))}
+            Send back {formatUsdt(repaymentDue(amount, SHORT_TERM_DAYS))}
           </div>
         </button>
         <button
@@ -178,13 +179,13 @@ export function LoanPanel({
           Pay in 30 days
           <div className="mt-1 font-normal text-muted-foreground">
             {allowsLongTerm
-              ? `Send back ${formatUsdc(repaymentDue(amount, LONG_TERM_DAYS))}`
+              ? `Send back ${formatUsdt(repaymentDue(amount, LONG_TERM_DAYS))}`
               : "Unlocks after a paid loan or a stronger score"}
           </div>
         </button>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Send back {formatUsdc(hasOpenLoan ? repayAmount : due)}
+        Send back {formatUsdt(hasOpenLoan ? repayAmount : due)}
         {hasOpenLoan && dueDate ? ` by ${dueDate}` : ` in ${termDays} days`}.
       </p>
       {hasOpenLoan && openDaysPastDue > 0 ? (
@@ -193,7 +194,7 @@ export function LoanPanel({
             ? `This was due ${dueDate}. Pay today.`
             : "This loan is past due. Pay today."}
           {openLateFee && openLateFee > 0
-            ? ` A late charge of ${formatUsdc(openLateFee)} has been added. Send ${formatUsdc(repayAmount)}.`
+            ? ` A late charge of ${formatUsdt(openLateFee)} has been added. Send ${formatUsdt(repayAmount)}.`
             : ""}
         </p>
       ) : null}
