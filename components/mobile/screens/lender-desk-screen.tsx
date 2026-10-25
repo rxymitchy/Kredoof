@@ -12,12 +12,14 @@ function FileCard({
   file,
   mine,
   busyId,
+  floatKes,
   onClaim,
   onFund,
 }: {
   file: MarketplaceFile;
   mine: boolean;
   busyId: string | null;
+  floatKes: number;
   onClaim: (id: string) => void;
   onFund: (id: string) => void;
 }) {
@@ -54,20 +56,28 @@ function FileCard({
       {!mine ? (
         <PrimaryButton
           className="mt-4 sm:w-auto sm:px-6"
-          disabled={busyId === file.id}
+          disabled={busyId === file.id || floatKes < LEAD_FEE_KES}
           onClick={() => onClaim(file.id)}
         >
-          {busyId === file.id ? "Please wait…" : `Take file · ${formatKsh(LEAD_FEE_KES)}`}
+          {busyId === file.id
+            ? "Please wait…"
+            : floatKes < LEAD_FEE_KES
+              ? "Put in KSh first"
+              : `Take file · ${formatKsh(LEAD_FEE_KES)}`}
         </PrimaryButton>
       ) : file.status === "funded" ? (
         <p className="mt-4 text-sm font-semibold text-[#123A22]">Funded</p>
       ) : (
         <PrimaryButton
           className="mt-4 sm:w-auto sm:px-6"
-          disabled={busyId === file.id}
+          disabled={busyId === file.id || floatKes < kes}
           onClick={() => onFund(file.id)}
         >
-          {busyId === file.id ? "Please wait…" : `Send ${formatKsh(kes)} as USDT`}
+          {busyId === file.id
+            ? "Please wait…"
+            : floatKes < kes
+              ? "Put in more KSh"
+              : `Send ${formatKsh(kes)} as USDT`}
         </PrimaryButton>
       )}
       {mine && amount > 0 && file.status !== "funded" ? (
@@ -86,27 +96,37 @@ export function LenderDeskScreen() {
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<MarketplaceFile[]>([]);
   const [mine, setMine] = useState<MarketplaceFile[]>([]);
+  const [floatKes, setFloatKes] = useState(0);
+  const [putIn, setPutIn] = useState("1000");
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(() => {
-    return fetch("/api/lender/leads")
-      .then(async (res) => {
-        const data = await res.json();
-        if (res.status === 401) {
+    return Promise.all([
+      fetch("/api/lender/leads"),
+      fetch("/api/lender/cash"),
+    ])
+      .then(async ([leadsRes, cashRes]) => {
+        const data = await leadsRes.json().catch(() => ({}));
+        const cash = await cashRes.json().catch(() => ({}));
+        if (leadsRes.status === 401 || cashRes.status === 401) {
           router.replace("/onboard?step=signin&as=lender");
           return;
         }
-        if (res.status === 403) {
+        if (leadsRes.status === 403 || cashRes.status === 403) {
           router.replace("/onboard?step=connect");
           return;
         }
-        if (!res.ok) {
+        if (!leadsRes.ok) {
           setError(data.error ?? "Could not load files");
           return;
         }
         setOpen(data.open ?? []);
         setMine(data.mine ?? []);
+        if (cashRes.ok && typeof cash.kes === "number") {
+          setFloatKes(cash.kes);
+        }
         setError(null);
       })
       .catch(() => setError("Could not load files"));
@@ -150,6 +170,25 @@ export function LenderDeskScreen() {
     await load();
   }
 
+  async function addMoney() {
+    const kes = Math.round(Number(putIn));
+    setAdding(true);
+    setError(null);
+    const res = await fetch("/api/lender/cash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kes }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setAdding(false);
+    if (!res.ok) {
+      setError(data.error ?? "Could not add money");
+      return;
+    }
+    setFloatKes(Number(data.kes) || 0);
+    setPutIn("");
+  }
+
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
     router.push("/");
@@ -168,12 +207,55 @@ export function LenderDeskScreen() {
           Qualified files
         </h1>
         <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
-          Borrowers who qualify land here. You put in KSh. They get USDT on Avalanche.
-          Pay {formatKsh(LEAD_FEE_KES)} for an exclusive file, then fund. You are not a
-          licensed lender through Kredoof.
+          Borrowers who qualify land here. Put KSh on this desk first. Taking a file
+          costs {formatKsh(LEAD_FEE_KES)}. Funding takes the listed shillings from your
+          float, and the borrower gets USDT on Avalanche. You are not a licensed lender
+          through Kredoof.
         </p>
         {error ? <p className="mt-4 text-sm text-[#C24545]">{error}</p> : null}
       </div>
+
+      <section className="mt-8 rounded-2xl border border-hairline bg-white px-5 py-5">
+        <h2 className="font-heading text-lg font-bold">Your money</h2>
+        <p className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">
+          {formatKsh(floatKes)}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {floatKes > 0
+            ? `That is about ${formatUsdt(usdtFromKes(floatKes))} we can send for you.`
+            : "Nothing on the desk yet. Add at least KSh 100."}
+        </p>
+        <form
+          className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void addMoney();
+          }}
+        >
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] border border-hairline px-3.5 py-3">
+            <span className="shrink-0 text-sm text-muted-foreground">KSh</span>
+            <input
+              value={putIn}
+              onChange={(event) => setPutIn(event.target.value)}
+              inputMode="numeric"
+              placeholder="1000"
+              aria-label="Amount in Kenyan shillings"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </label>
+          <PrimaryButton
+            type="submit"
+            disabled={adding}
+            className="sm:w-auto sm:px-6"
+          >
+            {adding ? "Adding…" : "Put in KSh"}
+          </PrimaryButton>
+        </form>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+          This is your desk float, not an M-Pesa pull yet. Record the shillings you are
+          putting in. Kredoof sends the matching USDT to the borrower from treasury.
+        </p>
+      </section>
 
       <section className="mt-8">
         <h2 className="font-heading text-lg font-bold">Open marketplace</h2>
@@ -189,6 +271,7 @@ export function LenderDeskScreen() {
                 file={file}
                 mine={false}
                 busyId={busyId}
+                floatKes={floatKes}
                 onClaim={(id) => void claim(id)}
                 onFund={(id) => void fund(id)}
               />
@@ -211,6 +294,7 @@ export function LenderDeskScreen() {
                 file={file}
                 mine
                 busyId={busyId}
+                floatKes={floatKes}
                 onClaim={(id) => void claim(id)}
                 onFund={(id) => void fund(id)}
               />
