@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { parseAccountRole } from "@/lib/account-role";
-import { getClaimedLeadForLender, hasOpenLoan } from "@/lib/persist";
+import {
+  addLenderKes,
+  getClaimedLeadForLender,
+  hasOpenLoan,
+  spendLenderKes,
+} from "@/lib/persist";
 import { usdtFromKes } from "@/lib/format";
 import {
   LONG_TERM_DAYS,
@@ -43,6 +48,15 @@ export async function POST(request: Request) {
   }
   const termDays =
     body.termDays === LONG_TERM_DAYS ? LONG_TERM_DAYS : SHORT_TERM_DAYS;
+  const kesNeeded = Math.round(lead.limit_kes ?? 0);
+  try {
+    await spendLenderKes(session.email, kesNeeded);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Add money first" },
+      { status: 400 }
+    );
+  }
   try {
     const { hash, loan } = await disburseFromTreasury({
       to: lead.wallet as `0x${string}`,
@@ -53,6 +67,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ hash, loan });
   } catch (err) {
+    await addLenderKes(session.email, kesNeeded).catch(() => null);
     const { error, status } = treasuryErrorMessage(err);
     return NextResponse.json({ error }, { status });
   }

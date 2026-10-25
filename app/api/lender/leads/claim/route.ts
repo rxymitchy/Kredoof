@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseAccountRole } from "@/lib/account-role";
-import { claimLeadExclusive } from "@/lib/persist";
+import { addLenderKes, claimLeadExclusive, spendLenderKes } from "@/lib/persist";
 import { LEAD_FEE_KES } from "@/lib/loan-terms";
 import { readActiveSession } from "@/lib/session";
 
@@ -17,13 +17,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "File required" }, { status: 400 });
   }
   try {
+    await spendLenderKes(session.email, LEAD_FEE_KES);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Add money first" },
+      { status: 400 }
+    );
+  }
+  try {
     const lead = await claimLeadExclusive(body.id, session.email);
     return NextResponse.json({
       lead,
       fee_kes: LEAD_FEE_KES,
-      message: `Exclusive file is yours. KSh ${LEAD_FEE_KES} is due from the lender, not the borrower.`,
+      message: `Exclusive file is yours. KSh ${LEAD_FEE_KES} came from your float.`,
     });
   } catch (error) {
+    await addLenderKes(session.email, LEAD_FEE_KES).catch(() => null);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not take that file" },
       { status: 409 }

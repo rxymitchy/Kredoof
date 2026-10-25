@@ -39,6 +39,8 @@ export type StoredUser = {
   deletedAt?: number | null;
   role?: AccountRole;
   googleId?: string | null;
+  /** KSh the lender has put in to take files and fund loans. */
+  kesFloat?: number;
 };
 
 export type StoredLoan = {
@@ -174,6 +176,7 @@ function normalizeUser(raw: StoredUser): StoredUser {
     name: raw.name || displayName(firstName, lastName),
     role: parseAccountRole(raw.role),
     googleId: raw.googleId ?? null,
+    kesFloat: Number(raw.kesFloat) > 0 ? Number(raw.kesFloat) : 0,
   };
 }
 
@@ -218,6 +221,7 @@ type UserRow = {
   deleted_at: string | number | null;
   role: string | null;
   google_id: string | null;
+  kes_float?: string | number | null;
 };
 
 function num(value: string | number | null | undefined): number | null {
@@ -245,6 +249,7 @@ function userFromRow(row: UserRow): StoredUser {
     deletedAt: num(row.deleted_at),
     role: parseAccountRole(row.role),
     googleId: row.google_id,
+    kesFloat: Number(row.kes_float) || 0,
   });
 }
 
@@ -357,14 +362,15 @@ async function insertUserRow(user: StoredUser): Promise<void> {
     INSERT INTO users (
       id, email, phone, password_hash, first_name, last_name, name, wallet,
       email_verified, verify_token_hash, verify_token_expires,
-      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id
+      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id, kes_float
     ) VALUES (
       ${user.id}, ${user.email}, ${user.phone}, ${user.passwordHash},
       ${user.firstName}, ${user.lastName}, ${user.name}, ${user.wallet ?? null},
       ${Boolean(user.emailVerified)}, ${user.verifyTokenHash ?? null},
       ${user.verifyTokenExpires ?? null}, ${user.resetTokenHash ?? null},
       ${user.resetTokenExpires ?? null}, ${user.createdAt}, ${user.lastScore ?? null},
-      ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}, ${user.googleId ?? null}
+      ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}, ${user.googleId ?? null},
+      ${Number(user.kesFloat) || 0}
     )
   `;
 }
@@ -388,7 +394,8 @@ async function updateUserRow(user: StoredUser): Promise<void> {
       last_score = ${user.lastScore ?? null},
       deleted_at = ${user.deletedAt ?? null},
       role = ${parseAccountRole(user.role)},
-      google_id = ${user.googleId ?? null}
+      google_id = ${user.googleId ?? null},
+      kes_float = ${Number(user.kesFloat) || 0}
     WHERE id = ${user.id}
   `;
 }
@@ -1188,6 +1195,82 @@ export async function claimLeadExclusive(
   }
   await writeJson(LEADS_PATH, leads);
   return lead;
+}
+
+export async function getLenderKesFloat(emailRaw: string): Promise<number> {
+  const user = await getUserByEmail(emailRaw);
+  if (!user) throw new Error("Account not found");
+  return Number(user.kesFloat) || 0;
+}
+
+export async function addLenderKes(
+  emailRaw: string,
+  kesRaw: number
+): Promise<number> {
+  const kes = Math.round(Number(kesRaw));
+  if (!Number.isFinite(kes) || kes < 100) {
+    throw new Error("Put in at least KSh 100");
+  }
+  if (kes > 20_000_000) {
+    throw new Error("That amount is too large for one add");
+  }
+  if (await usingDb()) {
+    const sql = getSql();
+    const email = normalizeEmail(emailRaw);
+    const rows = (await sql`
+      UPDATE users
+      SET kes_float = COALESCE(kes_float, 0) + ${kes}
+      WHERE email = ${email} AND deleted_at IS NULL
+      RETURNING kes_float
+    `) as { kes_float: string | number }[];
+    if (!rows[0]) throw new Error("Account not found");
+    return Number(rows[0].kes_float) || 0;
+  }
+  const user = await getUserByEmail(emailRaw);
+  if (!user) throw new Error("Account not found");
+  user.kesFloat = (Number(user.kesFloat) || 0) + kes;
+  await saveUser(user, "update");
+  return user.kesFloat;
+}
+
+export async function spendLenderKes(
+  emailRaw: string,
+  kesRaw: number
+): Promise<number> {
+  const kes = Math.round(Number(kesRaw));
+  if (!Number.isFinite(kes) || kes <= 0) {
+    throw new Error("Nothing to take from your float");
+  }
+  if (await usingDb()) {
+    const sql = getSql();
+    const email = normalizeEmail(emailRaw);
+    const rows = (await sql`
+      UPDATE users
+      SET kes_float = kes_float - ${kes}
+      WHERE email = ${email}
+        AND deleted_at IS NULL
+        AND COALESCE(kes_float, 0) >= ${kes}
+      RETURNING kes_float
+    `) as { kes_float: string | number }[];
+    if (!rows[0]) {
+      const have = await getLenderKesFloat(emailRaw).catch(() => 0);
+      throw new Error(
+        `Add money first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
+      );
+    }
+    return Number(rows[0].kes_float) || 0;
+  }
+  const user = await getUserByEmail(emailRaw);
+  if (!user) throw new Error("Account not found");
+  const have = Number(user.kesFloat) || 0;
+  if (have < kes) {
+    throw new Error(
+      `Add money first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
+    );
+  }
+  user.kesFloat = have - kes;
+  await saveUser(user, "update");
+  return user.kesFloat;
 }
 
 export async function getClaimedLeadForLender(
