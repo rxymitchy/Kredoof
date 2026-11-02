@@ -55,8 +55,8 @@ export function ConnectScreen({
           Connect your wallet
         </h1>
         <p className="mt-3 mb-8 max-w-xl text-base leading-7 text-muted-foreground">
-          Pick the wallet you already use for money. Then approve a quick check
-          so we can see your payments.
+          Use MetaMask, Coinbase Wallet, or another wallet — it has to be on
+          Avalanche. That’s the money we can read.
         </p>
 
         <div className="mb-6 rounded-[1.6rem] border border-hairline bg-white p-6 sm:p-8">
@@ -87,7 +87,7 @@ export function ConnectScreen({
                   </div>
                 </div>
                 <span className="rounded-lg bg-mint px-2 py-0.5 text-[10.5px] text-accent-foreground">
-                  {onAvalanche ? "Ready" : "Wrong network"}
+                  {onAvalanche ? "Avalanche" : "Wrong network"}
                 </span>
               </div>
               {!onAvalanche ? (
@@ -96,7 +96,7 @@ export function ConnectScreen({
                   onClick={() => switchChain({ chainId: avalanche.id })}
                   className="font-heading mt-3 w-full rounded-xl border border-hairline py-3 text-sm font-bold"
                 >
-                  {isSwitching ? "Switching…" : "Switch to the right network"}
+                  {isSwitching ? "Switching…" : "Switch to Avalanche"}
                 </button>
               ) : (
                 <p className="mt-3 text-[11.5px] leading-5 text-muted-foreground">
@@ -141,7 +141,7 @@ export function ConnectScreen({
           onClick={async () => {
             if (!address) return;
             if (!onAvalanche) {
-              setError("Please switch to the right network in your wallet first");
+              setError("Switch to Avalanche in your wallet first.");
               return;
             }
             setError(null);
