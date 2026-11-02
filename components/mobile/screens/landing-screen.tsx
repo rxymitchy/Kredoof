@@ -9,27 +9,28 @@ import { Reveal } from "@/components/marketing/reveal";
 const STEPS = [
   {
     n: "01",
-    title: "Show your money",
-    body: "No bank letters. Just money already moving on your phone.",
+    title: "Connect your wallet",
+    body: "Sign up and connect your Avalanche wallet. No piles of paperwork.",
   },
   {
     n: "02",
-    title: "We check it",
-    body: "What came in, what went out. Then yes, no, or how much.",
+    title: "We look at your money",
+    body: "Money in, money out, and how you manage it. That’s your history.",
   },
   {
     n: "03",
-    title: "Borrow or lend",
-    body: "Take credit. Or put in shillings and fund someone else.",
+    title: "Get funded",
+    body: "We build your credit profile. If you qualify, a lender can fund you.",
   },
 ];
 
 const TICKER = [
-  "Money on the till",
-  "Shillings in",
-  "Credit out",
-  "Your payments",
-  "Proof, then credit",
+  "Avalanche wallet",
+  "Connect on Avalanche",
+  "Money in",
+  "Money out",
+  "Credit profile",
+  "Get funded",
 ];
 
 export function LandingScreen() {
@@ -82,8 +83,8 @@ export function LandingScreen() {
             Get the credit.
           </h1>
           <p className="mt-4 max-w-md text-[15px] leading-6 text-white/80 sm:text-lg lg:mt-7">
-            We look at money already moving with you. If it looks good, you can
-            borrow — or lend shillings to someone who passed.
+            Your wallet has a financial history. We help it count — then lenders
+            can fund you.
           </p>
           <div className="mt-8 hidden gap-3 lg:flex">
             <Link
@@ -125,13 +126,13 @@ export function LandingScreen() {
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
         <Reveal className="relative z-10 mx-auto flex min-h-[78dvh] max-w-5xl flex-col justify-end px-5 py-16 sm:px-8 lg:px-12">
           <p className="display text-[clamp(2.4rem,9vw,4.8rem)]">
-            Shillings in.
+            Your money
             <br />
-            <span className="text-[#8fd9a4]">Credit out.</span>
+            <span className="text-[#8fd9a4]">already speaks.</span>
           </p>
           <p className="mt-6 max-w-md text-base leading-7 text-white/75">
-            You put in shillings. They get paid on their phone. Kredoof is not a
-            bank.
+            Kredoof isn’t a bank. We’re a smarter way to show what your money
+            says about you.
           </p>
         </Reveal>
       </section>
@@ -139,7 +140,7 @@ export function LandingScreen() {
       <section className="mx-auto max-w-5xl px-5 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-28">
         <Reveal>
           <h2 className="display mx-auto max-w-3xl text-center text-[clamp(2rem,8vw,3.4rem)]">
-            Three steps. That's the whole thing.
+            How it works.
           </h2>
         </Reveal>
         <div className="mt-12 grid gap-0 sm:mt-16">
@@ -173,12 +174,12 @@ export function LandingScreen() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/20" />
           <div className="relative flex h-full min-h-[20rem] flex-col justify-end px-6 py-10 sm:min-h-[22rem] sm:px-12 sm:py-12">
-            <p className="text-sm text-white/70">To borrow</p>
+            <p className="text-sm text-white/70">Need a loan</p>
             <h2 className="display mt-3 text-[clamp(2rem,6vw,3.4rem)]">
               Get credit
             </h2>
             <p className="mt-3 max-w-sm text-base leading-7 text-white/75">
-              Show us money already moving. If it looks good, you borrow.
+              Connect your wallet. If you qualify, lenders can fund you.
             </p>
             <span className="mt-8 inline-flex text-sm text-[#8fd9a4]">
               {signedIn ? "Continue →" : "Start →"}
@@ -196,12 +197,12 @@ export function LandingScreen() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0b]/80 via-[#0c0d0b]/35 to-transparent" />
           <div className="relative flex h-full min-h-[20rem] flex-col justify-end px-6 py-10 text-white sm:min-h-[22rem] sm:px-12 sm:py-12">
-            <p className="text-sm text-[#8fd9a4]">To lend</p>
+            <p className="text-sm text-[#8fd9a4]">Want to fund</p>
             <h2 className="display mt-3 text-[clamp(2rem,6vw,3.4rem)]">
               {signedIn && role === "lender" ? "Your desk" : "Lend"}
             </h2>
             <p className="mt-3 max-w-sm text-base leading-7 text-white/75">
-              Put in shillings, pick someone who passed, and they get paid.
+              Review a credit profile and decide whether to fund the loan.
             </p>
             <span className="mt-8 inline-flex text-sm text-white/80">
               Open the desk →

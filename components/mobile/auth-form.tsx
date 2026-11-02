@@ -518,7 +518,7 @@ export function AuthForm({
       <PrimaryButton type="submit" disabled={busy} className="bg-mint-deep">
         {busy ? "Please wait…" : submitLabel}
       </PrimaryButton>
-      {mode === "signin" || mode === "signup" ? (
+      {mode === "signin" ? (
         <>
           <p className="mt-4 text-center text-xs text-muted-foreground">or</p>
           <a
