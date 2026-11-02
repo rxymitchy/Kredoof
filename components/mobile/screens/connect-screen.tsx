@@ -51,15 +51,15 @@ export function ConnectScreen({
   return (
     <PhoneShell>
       <div className="mx-auto max-w-2xl">
-        <h1 className="font-heading text-3xl font-extrabold sm:text-4xl">
+        <h1 className="display text-[clamp(2.2rem,5vw,3.4rem)]">
           Connect your wallet
         </h1>
         <p className="mt-3 mb-8 max-w-xl text-base leading-7 text-muted-foreground">
-          Pick the wallet app you use for money. Then approve a quick check so
-          we can see your payment history.
+          Pick the wallet you already use for money. Then approve a quick check
+          so we can see your payments.
         </p>
 
-        <div className="mb-6 rounded-3xl border border-hairline bg-white p-6 sm:p-8">
+        <div className="mb-6 rounded-[1.6rem] border border-hairline bg-white p-6 sm:p-8">
           <div className="mb-3 flex items-center gap-2.5">
             <div className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-mint">
               <Wallet size={17} className="text-mint-deep" />

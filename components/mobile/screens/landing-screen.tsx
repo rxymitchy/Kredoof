@@ -1,9 +1,36 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { PhoneShell } from "@/components/mobile/phone-shell";
+import { SiteDock } from "@/components/layout/site-dock";
+import { FilmStill, ParallaxFrame } from "@/components/marketing/film-still";
+import { Reveal } from "@/components/marketing/reveal";
+
+const STEPS = [
+  {
+    n: "01",
+    title: "Show your money",
+    body: "No bank letters. Just money already moving on your phone.",
+  },
+  {
+    n: "02",
+    title: "We check it",
+    body: "What came in, what went out. Then yes, no, or how much.",
+  },
+  {
+    n: "03",
+    title: "Borrow or lend",
+    body: "Take credit. Or put in shillings and fund someone else.",
+  },
+];
+
+const TICKER = [
+  "Money on the till",
+  "Shillings in",
+  "Credit out",
+  "Your payments",
+  "Proof, then credit",
+];
 
 export function LandingScreen() {
   const [signedIn, setSignedIn] = useState(false);
@@ -18,121 +45,210 @@ export function LandingScreen() {
       })
       .catch(() => undefined);
   }, []);
+
+  const creditHref = signedIn
+    ? role === "lender"
+      ? "/lend"
+      : "/onboard?step=connect"
+    : "/onboard?step=signup";
+  const lendHref =
+    signedIn && role === "lender" ? "/lend" : "/onboard?step=signup&as=lender";
+
   return (
-    <PhoneShell>
-      <div className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-            Credit from your payments
-          </p>
-          <h1 className="font-heading mt-3 text-4xl font-extrabold tracking-[0.08em] text-foreground sm:text-5xl lg:text-6xl">
-            KREDOOF
+    <div className="relative min-h-dvh overflow-x-hidden bg-canvas text-foreground">
+      <SiteDock tone="ghost" fadeOnScroll />
+
+      <section className="relative min-h-[100dvh] overflow-hidden">
+        <div className="absolute inset-0">
+          <ParallaxFrame className="h-full min-h-[120%]" strength={0.1}>
+            <FilmStill
+              src="/images/hero.jpg"
+              alt="A shopkeeper at a till with a phone nearby"
+              className="h-full min-h-[100dvh] w-full"
+              imgClassName="min-h-[100dvh]"
+            />
+          </ParallaxFrame>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/25" />
+        </div>
+
+        <div className="relative z-10 flex min-h-[100dvh] flex-col justify-end px-5 pb-32 pt-24 text-white lg:max-w-3xl lg:justify-center lg:px-16 lg:pb-20">
+          <h1 className="display text-[clamp(2.35rem,9vw,5.4rem)]">
+            Got the{" "}
+            <em className="font-serif pr-[0.06em] italic font-medium tracking-[-0.04em] text-[#8fd9a4]">
+              proof
+            </em>
+            ?
+            <br />
+            Get the credit.
           </h1>
-          <p className="font-serif mt-3 text-xl italic text-foreground sm:text-2xl">
-            Got the proof? Get the credit.
+          <p className="mt-4 max-w-md text-[15px] leading-6 text-white/80 sm:text-lg lg:mt-7">
+            We look at money already moving with you. If it looks good, you can
+            borrow — or lend shillings to someone who passed.
           </p>
-          <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-            We look at money that already moved in your wallet and turn it into
-            a simple yes, no, or how much.
-          </p>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-            You do not need bank papers or M-Pesa statements. If you want to
-            lend, you can pick a business that already qualified.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mt-8 hidden gap-3 lg:flex">
             <Link
-              href={
-                signedIn
-                  ? role === "lender"
-                    ? "/lend"
-                    : "/onboard?step=connect"
-                  : "/onboard?step=signup"
-              }
-              className="font-heading inline-flex w-full items-center justify-center rounded-2xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground sm:w-auto"
+              href={creditHref}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-mint-deep px-6 text-sm font-medium text-white"
             >
               {signedIn ? "Continue" : "Get credit"}
             </Link>
             <Link
-              href={
-                signedIn && role === "lender"
-                  ? "/lend"
-                  : "/onboard?step=signup&as=lender"
-              }
-              className="font-heading inline-flex w-full items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground sm:w-auto"
+              href={lendHref}
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/25 bg-white/10 px-6 text-sm font-medium text-white backdrop-blur-md"
             >
-              {signedIn && role === "lender" ? "Your desk" : "Become a lender"}
+              Lend
             </Link>
           </div>
-          <p className="mt-4 text-sm text-muted-foreground">
-            {signedIn ? (
-              <>
-                Not you?{" "}
-                <button
-                  type="button"
-                  className="font-semibold text-mint-deep underline-offset-4 hover:underline"
-                  onClick={async () => {
-                    await fetch("/api/auth/logout", { method: "POST" }).catch(
-                      () => null
-                    );
-                    setSignedIn(false);
-                  }}
-                >
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <>
-                Have an account?{" "}
-                <Link
-                  href="/onboard?step=signin"
-                  className="font-semibold text-mint-deep underline-offset-4 hover:underline"
-                >
-                  Sign in
-                </Link>
-              </>
-            )}
-          </p>
         </div>
+      </section>
 
-        <div className="rounded-3xl border border-hairline bg-white p-6 shadow-[0_24px_60px_-28px_rgba(20,23,28,0.18)] sm:p-8">
-          <p className="font-heading text-sm font-bold text-foreground">
-            Your payments are the proof
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {["Connect a wallet", "We check the money", "You get a result"].map(
-              (step, i) => (
-                <div
-                  key={step}
-                  className="rounded-2xl bg-muted px-4 py-5 text-center"
-                >
-                  <div className="font-mono text-xs text-muted-foreground">
-                    0{i + 1}
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-foreground">
-                    {step}
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-          <div
-            className="mt-6 flex items-center justify-center rounded-2xl py-10"
-            style={{
-              background: "linear-gradient(135deg, #DDF3D6 0%, #8FD9A4 100%)",
-            }}
-          >
-            <div className="text-center">
-              <ShieldCheck className="mx-auto text-[#1F5A34]" size={36} />
-              <p className="font-heading mt-3 text-sm font-bold text-[#123A22]">
-                Real wallet payments
-              </p>
-              <p className="mt-1 text-xs text-[#215B36]/80">
-                No bank or M-Pesa statements
-              </p>
-            </div>
-          </div>
+      <div className="relative z-10 overflow-hidden border-y border-hairline bg-canvas">
+        <div className="marquee-track flex gap-10 py-3.5 font-mono text-[11px] tracking-[0.16em] text-muted-foreground uppercase">
+          {[...TICKER, ...TICKER, ...TICKER].map((item, i) => (
+            <span key={`${item}-${i}`} className="flex items-center gap-10">
+              {item}
+              <span className="text-mint-deep">·</span>
+            </span>
+          ))}
         </div>
       </div>
-    </PhoneShell>
+
+      <section className="relative min-h-[78dvh] overflow-hidden bg-[#0c0d0b] text-white">
+        <ParallaxFrame className="absolute inset-0" strength={0.16}>
+          <FilmStill
+            src="/images/count.jpg"
+            alt="Hands counting Kenyan shilling notes at a workshop bench"
+            className="h-[120%] w-full"
+            imgClassName="h-full opacity-70"
+          />
+        </ParallaxFrame>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20" />
+        <Reveal className="relative z-10 mx-auto flex min-h-[78dvh] max-w-5xl flex-col justify-end px-5 py-16 sm:px-8 lg:px-12">
+          <p className="display text-[clamp(2.4rem,9vw,4.8rem)]">
+            Shillings in.
+            <br />
+            <span className="text-[#8fd9a4]">Credit out.</span>
+          </p>
+          <p className="mt-6 max-w-md text-base leading-7 text-white/75">
+            You put in shillings. They get paid on their phone. Kredoof is not a
+            bank.
+          </p>
+        </Reveal>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-5 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-28">
+        <Reveal>
+          <h2 className="display mx-auto max-w-3xl text-center text-[clamp(2rem,8vw,3.4rem)]">
+            Three steps. That's the whole thing.
+          </h2>
+        </Reveal>
+        <div className="mt-12 grid gap-0 sm:mt-16">
+          {STEPS.map((step, i) => (
+            <Reveal key={step.n} delay={i * 90}>
+              <div className="grid items-baseline gap-2 border-t border-hairline py-7 sm:grid-cols-[5rem_1fr_1.2fr] sm:gap-3 sm:py-8">
+                <p className="font-mono text-xs tracking-[0.18em] text-mint-deep">
+                  {step.n}
+                </p>
+                <h3 className="text-xl tracking-[-0.04em] sm:text-3xl">
+                  {step.title}
+                </h3>
+                <p className="text-base leading-7 text-muted-foreground">
+                  {step.body}
+                </p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <section className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-28 sm:px-4 lg:grid lg:grid-cols-2 lg:overflow-visible lg:pb-8">
+        <Link
+          href={creditHref}
+          className="group relative min-h-[20rem] w-[86vw] shrink-0 snap-center overflow-hidden rounded-[1.75rem] text-white sm:min-h-[22rem] lg:w-auto"
+        >
+          <FilmStill
+            src="/images/hero.jpg"
+            alt=""
+            className="absolute inset-0 h-full w-full"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/20" />
+          <div className="relative flex h-full min-h-[20rem] flex-col justify-end px-6 py-10 sm:min-h-[22rem] sm:px-12 sm:py-12">
+            <p className="text-sm text-white/70">To borrow</p>
+            <h2 className="display mt-3 text-[clamp(2rem,6vw,3.4rem)]">
+              Get credit
+            </h2>
+            <p className="mt-3 max-w-sm text-base leading-7 text-white/75">
+              Show us money already moving. If it looks good, you borrow.
+            </p>
+            <span className="mt-8 inline-flex text-sm text-[#8fd9a4]">
+              {signedIn ? "Continue →" : "Start →"}
+            </span>
+          </div>
+        </Link>
+        <Link
+          href={lendHref}
+          className="group relative min-h-[20rem] w-[86vw] shrink-0 snap-center overflow-hidden rounded-[1.75rem] lg:w-auto"
+        >
+          <FilmStill
+            src="/images/auth.jpg"
+            alt=""
+            className="absolute inset-0 h-full w-full"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0c0d0b]/80 via-[#0c0d0b]/35 to-transparent" />
+          <div className="relative flex h-full min-h-[20rem] flex-col justify-end px-6 py-10 text-white sm:min-h-[22rem] sm:px-12 sm:py-12">
+            <p className="text-sm text-[#8fd9a4]">To lend</p>
+            <h2 className="display mt-3 text-[clamp(2rem,6vw,3.4rem)]">
+              {signedIn && role === "lender" ? "Your desk" : "Lend"}
+            </h2>
+            <p className="mt-3 max-w-sm text-base leading-7 text-white/75">
+              Put in shillings, pick someone who passed, and they get paid.
+            </p>
+            <span className="mt-8 inline-flex text-sm text-white/80">
+              Open the desk →
+            </span>
+          </div>
+        </Link>
+      </section>
+
+      <footer className="flex flex-col items-center gap-3 px-6 py-12 pb-28 text-center text-sm text-muted-foreground lg:pb-12">
+        <p>Kredoof. Got the proof? Get the credit.</p>
+        {signedIn ? (
+          <button
+            type="button"
+            className="min-h-11 font-medium text-foreground underline-offset-4 hover:underline"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" }).catch(
+                () => null
+              );
+              setSignedIn(false);
+            }}
+          >
+            Sign out
+          </button>
+        ) : (
+          <Link
+            href="/onboard?step=signin"
+            className="inline-flex min-h-11 items-center font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            Sign in
+          </Link>
+        )}
+      </footer>
+
+      <div className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-2 gap-2 pb-[env(safe-area-inset-bottom)] lg:hidden">
+        <Link
+          href={creditHref}
+          className="inline-flex min-h-12 items-center justify-center rounded-full bg-mint-deep text-sm font-medium text-white shadow-[0_12px_30px_-12px_rgba(20,122,67,0.7)]"
+        >
+          Get credit
+        </Link>
+        <Link
+          href={lendHref}
+          className="inline-flex min-h-12 items-center justify-center rounded-full border border-black/10 bg-white/90 text-sm font-medium backdrop-blur-md"
+        >
+          Lend
+        </Link>
+      </div>
+    </div>
   );
 }

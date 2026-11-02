@@ -26,7 +26,7 @@ function FileCard({
   const amount = usdtFromKes(file.limit_kes ?? 0);
   const kes = file.limit_kes ?? 0;
   return (
-    <div className="rounded-2xl border border-hairline bg-white px-5 py-4">
+    <div className="rounded-[1.5rem] border border-hairline bg-white/80 px-5 py-5 backdrop-blur-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-heading text-sm font-bold text-foreground">
@@ -199,11 +199,20 @@ export function LenderDeskScreen() {
 
   return (
     <PhoneShell>
-      <div className="max-w-3xl">
-        <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-          Lender desk
+      <div className="relative mb-8 overflow-hidden rounded-[1.8rem] sm:mb-10">
+        <img
+          src="/images/auth.jpg"
+          alt="Cash changing hands at a stall"
+          className="ken-burns h-36 w-full object-cover sm:h-56"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 to-black/10" />
+        <p className="absolute bottom-5 left-6 font-serif text-2xl italic text-white sm:text-3xl">
+          Put in shillings. Fund a file.
         </p>
-        <h1 className="font-heading mt-2 text-3xl font-extrabold text-foreground sm:text-4xl">
+      </div>
+      <div className="max-w-3xl">
+        <p className="text-sm text-mint-deep">Lender desk</p>
+        <h1 className="display mt-2 text-[clamp(2.2rem,5vw,3.5rem)]">
           Qualified files
         </h1>
         <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
@@ -215,9 +224,9 @@ export function LenderDeskScreen() {
         {error ? <p className="mt-4 text-sm text-[#C24545]">{error}</p> : null}
       </div>
 
-      <section className="mt-8 rounded-2xl border border-hairline bg-white px-5 py-5">
-        <h2 className="font-heading text-lg font-bold">Your money</h2>
-        <p className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">
+      <section className="mt-10 rounded-[1.6rem] border border-hairline bg-white px-6 py-6">
+        <h2 className="text-sm text-muted-foreground">Your money</h2>
+        <p className="display mt-2 text-4xl text-mint-deep sm:text-5xl">
           {formatKsh(floatKes)}
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -232,7 +241,7 @@ export function LenderDeskScreen() {
             void addMoney();
           }}
         >
-          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] border border-hairline px-3.5 py-3">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-hairline bg-canvas px-4 py-3">
             <span className="shrink-0 text-sm text-muted-foreground">KSh</span>
             <input
               value={putIn}
@@ -243,11 +252,7 @@ export function LenderDeskScreen() {
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
           </label>
-          <PrimaryButton
-            type="submit"
-            disabled={adding}
-            className="sm:w-auto sm:px-6"
-          >
+          <PrimaryButton type="submit" disabled={adding} className="sm:w-auto sm:px-6">
             {adding ? "Adding…" : "Put in KSh"}
           </PrimaryButton>
         </form>
@@ -258,7 +263,7 @@ export function LenderDeskScreen() {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-heading text-lg font-bold">Open marketplace</h2>
+        <h2 className="text-xl tracking-[-0.04em]">Open marketplace</h2>
         <div className="mt-3 grid gap-3">
           {open.length === 0 ? (
             <p className="rounded-2xl border border-hairline bg-white px-5 py-6 text-sm text-muted-foreground">
@@ -281,7 +286,7 @@ export function LenderDeskScreen() {
       </section>
 
       <section className="mt-10">
-        <h2 className="font-heading text-lg font-bold">Your exclusive files</h2>
+        <h2 className="text-xl tracking-[-0.04em]">Your exclusive files</h2>
         <div className="mt-3 grid gap-3">
           {mine.length === 0 ? (
             <p className="rounded-2xl border border-hairline bg-white px-5 py-6 text-sm text-muted-foreground">

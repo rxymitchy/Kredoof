@@ -1,16 +1,17 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-import { PhoneShell } from "@/components/mobile/phone-shell";
-import { PrimaryButton } from "@/components/mobile/ui";
+import Link from "next/link";
+import { SiteDock } from "@/components/layout/site-dock";
+import { FilmStill } from "@/components/marketing/film-still";
+import { Reveal } from "@/components/marketing/reveal";
 
 const STEPS = [
-  "A business signs up and connects a wallet",
-  "We look at real wallet payments (USDT and USDC on Avalanche)",
-  "If they qualify, the file lands on the lender desk",
-  "A lender pays KSh 100 for that exclusive file",
-  "The lender puts in KSh. We convert and send USDT to the borrower",
-  "The borrower pays back USDT on time. Daily interest goes to the funder",
+  "You sign up and show us money on your phone.",
+  "We check what came in and what went out.",
+  "If it looks good, you can borrow — and people who want to lend can see it.",
+  "Someone puts in shillings and takes you — just them.",
+  "We send you the money.",
+  "You pay them back, a bit each day.",
 ];
 
 export function HowItWorksScreen({
@@ -21,61 +22,68 @@ export function HowItWorksScreen({
   onBack?: () => void;
 }) {
   return (
-    <PhoneShell>
-      <div className="max-w-3xl">
-        <h1 className="font-heading text-3xl font-extrabold text-foreground sm:text-4xl">
-          How it works
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-          Banks often ask for paper statements. We look at the money that
-          already moved through the wallet, then put a qualified file in front
-          of a lender.
-        </p>
-        <p className="font-serif mt-4 text-xl italic text-foreground">
-          Your payments are the proof.
-        </p>
+    <div className="min-h-dvh overflow-x-hidden bg-canvas text-foreground">
+      <SiteDock />
+      <div className="relative h-[46vh] min-h-[260px] overflow-hidden sm:h-[54vh]">
+        <FilmStill
+          src="/images/count.jpg"
+          alt="Hands counting Kenyan shilling notes"
+          className="absolute inset-0 h-full w-full"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/20 to-black/25" />
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-6 sm:px-8">
+          <p className="text-sm text-muted-foreground">How it works</p>
+          <h1 className="display mt-2 text-[clamp(2.1rem,9vw,4.4rem)]">
+            Banks want papers.
+            <br />
+            We look at the money.
+          </h1>
+        </div>
       </div>
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
-        {STEPS.map((step, i) => (
-          <div
-            key={step}
-            className="flex items-center justify-between rounded-2xl border border-hairline bg-white px-5 py-4"
+      <main className="mx-auto max-w-4xl px-5 pb-28 pt-8 sm:px-8 sm:pb-24">
+        <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
+          You show us money that already moved. If it looks good, you can
+          borrow — or someone can lend you shillings. Kredoof is not a bank.
+        </p>
+
+        <ol className="mt-10 grid gap-0 sm:mt-16">
+          {STEPS.map((step, i) => (
+            <Reveal key={step} delay={i * 70}>
+              <li className="grid gap-2 border-t border-hairline py-6 sm:grid-cols-[4.5rem_1fr] sm:items-baseline sm:gap-3 sm:py-8">
+                <span className="font-mono text-xs tracking-[0.18em] text-mint-deep">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <p className="text-lg tracking-[-0.03em] sm:text-2xl">{step}</p>
+              </li>
+            </Reveal>
+          ))}
+        </ol>
+
+        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onContinue}
+            className="inline-flex min-h-12 items-center justify-center rounded-full bg-mint-deep px-7 text-sm font-medium text-white"
           >
-            <span className="text-sm text-foreground sm:text-base">
-              <span className="mr-2 font-mono text-xs text-muted-foreground">
-                {i + 1}
-              </span>
-              {step}
-            </span>
-            <ChevronRight size={16} className="text-muted-foreground" />
-          </div>
-        ))}
-      </div>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <PrimaryButton onClick={onContinue} className="sm:w-auto sm:px-8">
-          Get credit
-        </PrimaryButton>
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof window !== "undefined") {
-              window.location.href = "/onboard?step=signup&as=lender";
-            }
-          }}
-          className="font-heading inline-flex items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground"
-        >
-          Become a lender
-        </button>
-      </div>
-      {onBack ? (
-        <button
-          type="button"
-          onClick={onBack}
-          className="mt-4 block text-sm font-semibold text-mint-deep"
-        >
-          Back
-        </button>
-      ) : null}
-    </PhoneShell>
+            Get credit
+          </button>
+          <Link
+            href="/onboard?step=signup&as=lender"
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-hairline bg-white px-7 text-sm font-medium"
+          >
+            I want to lend
+          </Link>
+        </div>
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-6 inline-flex min-h-11 items-center text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Back
+          </button>
+        ) : null}
+      </main>
+    </div>
   );
 }

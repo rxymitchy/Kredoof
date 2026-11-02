@@ -1,7 +1,7 @@
 "use client";
 
 import { parseAccountRole, type AccountRole } from "@/lib/account-role";
-import { Lock, Mail, Phone, User } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PrimaryButton } from "@/components/mobile/ui";
 import {
@@ -23,12 +23,14 @@ export function AuthForm({
   resetToken = "",
   initialRole = "borrower",
   onContinue,
+  onModeChange,
 }: {
   initialMode?: AuthMode;
   initialError?: string | null;
   resetToken?: string;
   initialRole?: AccountRole;
   onContinue: (role: AccountRole) => void;
+  onModeChange?: (mode: AuthMode) => void;
 }) {
   const [mode, setAuthMode] = useState<AuthMode>(initialMode);
   const [role, setRole] = useState<AccountRole>(parseAccountRole(initialRole));
@@ -52,6 +54,7 @@ export function AuthForm({
   const [error, setError] = useState<string | null>(initialError);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setAuthMode(initialMode);
@@ -87,6 +90,7 @@ export function AuthForm({
 
   function switchMode(next: AuthMode) {
     setAuthMode(next);
+    onModeChange?.(next);
     setError(null);
     setServerEmailError(null);
     setServerPasswordError(null);
@@ -210,12 +214,12 @@ export function AuthForm({
 
   const submitLabel =
     mode === "signin"
-      ? "Sign in"
+      ? "Sign me in"
       : mode === "forgot"
         ? "Send reset link"
         : mode === "reset"
-          ? "Update password"
-          : "Sign up";
+          ? "Save new password"
+          : "Create my account";
 
   return (
     <form
@@ -226,17 +230,17 @@ export function AuthForm({
       noValidate
     >
       {mode === "signup" || mode === "signin" ? (
-        <div className="mb-5 flex rounded-[14px] bg-[#F3F5F1] p-1">
+        <div className="mb-5 flex rounded-full bg-[#EEF0EC] p-1">
           {(["signup", "signin"] as const).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => switchMode(m)}
               className={cn(
-                "font-heading flex-1 rounded-[10px] py-2.5 text-sm font-bold",
+                "flex-1 min-h-11 rounded-full py-2.5 text-sm font-medium",
                 mode === m
                   ? "bg-white text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                  : "text-[#a9b0a2]"
+                  : "text-[#8a9086]"
               )}
             >
               {m === "signin" ? "Sign in" : "Sign up"}
@@ -244,23 +248,18 @@ export function AuthForm({
           ))}
         </div>
       ) : (
-        <div className="mb-5">
-          <h2 className="font-heading text-lg font-bold">
-            {mode === "reset" ? "Choose a new password" : "Forgot password"}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "reset"
-              ? "Use at least 8 characters."
-              : "We’ll email a reset link if that email or phone has an account."}
-          </p>
-        </div>
+        <p className="mb-5 text-sm text-muted-foreground">
+          {mode === "reset"
+            ? "Use at least 8 characters."
+            : "We’ll email a reset link if that email or phone has an account."}
+        </p>
       )}
       {mode === "signup" ? (
-        <div className="mb-4">
-          <p className="mb-2 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            I am here to
+        <div className="mb-5">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            I’m here to
           </p>
-          <div className="flex rounded-[14px] bg-[#F3F5F1] p-1">
+          <div className="flex rounded-full bg-[#EEF0EC] p-1">
             {(
               [
                 ["borrower", "Get credit"],
@@ -272,10 +271,10 @@ export function AuthForm({
                 type="button"
                 onClick={() => setRole(value)}
                 className={cn(
-                  "font-heading flex-1 rounded-[10px] py-2.5 text-sm font-bold",
+                  "flex-1 min-h-11 rounded-full py-2.5 text-sm font-medium",
                   role === value
                     ? "bg-white text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                    : "text-[#a9b0a2]"
+                    : "text-[#8a9086]"
                 )}
               >
                 {label}
@@ -287,9 +286,12 @@ export function AuthForm({
       {mode === "signup" ? (
         <div className="mb-3 grid grid-cols-2 gap-3">
           <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              First name
+            </p>
             <label
               className={cn(
-                "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+                "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
                 firstNameError ? "border-[#C24545]" : "border-hairline"
               )}
             >
@@ -298,7 +300,7 @@ export function AuthForm({
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 onBlur={() => mark("firstName")}
-                placeholder="First name"
+                placeholder="Amina"
                 autoComplete="given-name"
                 required
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none"
@@ -309,9 +311,12 @@ export function AuthForm({
             ) : null}
           </div>
           <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              Last name
+            </p>
             <label
               className={cn(
-                "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+                "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
                 lastNameError ? "border-[#C24545]" : "border-hairline"
               )}
             >
@@ -320,7 +325,7 @@ export function AuthForm({
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 onBlur={() => mark("lastName")}
-                placeholder="Last name"
+                placeholder="Wanjiku"
                 autoComplete="family-name"
                 required
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none"
@@ -334,9 +339,12 @@ export function AuthForm({
       ) : null}
       {mode === "signup" ? (
         <div className="mb-3">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Email
+          </p>
           <label
             className={cn(
-              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
               emailError ? "border-[#C24545]" : "border-hairline"
             )}
           >
@@ -363,9 +371,12 @@ export function AuthForm({
       ) : null}
       {mode === "signup" ? (
         <div className="mb-3">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Phone
+          </p>
           <label
             className={cn(
-              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
               phoneError ? "border-[#C24545]" : "border-hairline"
             )}
           >
@@ -392,9 +403,12 @@ export function AuthForm({
       ) : null}
       {mode === "signin" || mode === "forgot" ? (
         <div className="mb-3">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Email or phone
+          </p>
           <label
             className={cn(
-              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
               identifierError ? "border-[#C24545]" : "border-hairline"
             )}
           >
@@ -406,7 +420,7 @@ export function AuthForm({
                 setServerEmailError(null);
               }}
               onBlur={() => mark("identifier")}
-              placeholder="Email or phone number"
+              placeholder="you@gmail.com or 0712 345 678"
               autoComplete="username"
               required
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
@@ -419,22 +433,25 @@ export function AuthForm({
       ) : null}
       {mode !== "forgot" ? (
         <div className={mode === "signin" ? "mb-2" : "mb-5"}>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            {mode === "reset" ? "New password" : "Password"}
+          </p>
           <label
             className={cn(
-              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
               passwordError ? "border-[#C24545]" : "border-hairline"
             )}
           >
             <Lock size={16} className="text-[#a9b0a2]" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
                 setServerPasswordError(null);
               }}
               onBlur={() => mark("password")}
-              placeholder={mode === "reset" ? "New password" : "Password"}
+              placeholder="At least 8 characters"
               minLength={8}
               autoComplete={
                 mode === "signin" ? "current-password" : "new-password"
@@ -442,6 +459,14 @@ export function AuthForm({
               required
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="shrink-0 text-[#a9b0a2]"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </label>
           {passwordError ? (
             <p className="mt-1 text-xs text-[#C24545]">{passwordError}</p>
@@ -450,19 +475,22 @@ export function AuthForm({
       ) : null}
       {mode === "reset" ? (
         <div className="mb-5">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Confirm password
+          </p>
           <label
             className={cn(
-              "flex items-center gap-2.5 rounded-[14px] border px-3.5 py-3",
+              "flex items-center gap-2.5 rounded-[14px] border bg-white px-3.5 py-3",
               confirmError ? "border-[#C24545]" : "border-hairline"
             )}
           >
             <Lock size={16} className="text-[#a9b0a2]" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onBlur={() => mark("confirm")}
-              placeholder="Confirm password"
+              placeholder="Type it again"
               minLength={8}
               autoComplete="new-password"
               required
@@ -487,7 +515,7 @@ export function AuthForm({
         <p className="mb-3 text-sm text-[#1F5A34]">{notice}</p>
       ) : null}
       {error ? <p className="mb-3 text-sm text-[#C24545]">{error}</p> : null}
-      <PrimaryButton type="submit" disabled={busy}>
+      <PrimaryButton type="submit" disabled={busy} className="bg-mint-deep">
         {busy ? "Please wait…" : submitLabel}
       </PrimaryButton>
       {mode === "signin" || mode === "signup" ? (
@@ -495,7 +523,7 @@ export function AuthForm({
           <p className="mt-4 text-center text-xs text-muted-foreground">or</p>
           <a
             href="/api/auth/google"
-            className="font-heading mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-hairline bg-white px-8 py-3.5 text-sm font-bold text-foreground"
+            className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-hairline bg-white px-8 py-3.5 text-sm font-medium text-foreground"
           >
             Continue with Google
           </a>
