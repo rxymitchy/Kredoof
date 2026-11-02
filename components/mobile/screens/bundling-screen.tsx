@@ -15,15 +15,13 @@ export function BundlingScreen({
 
   return (
     <PhoneShell>
-      <div className="mx-auto max-w-xl rounded-3xl border border-hairline bg-white px-6 py-10 text-center sm:px-10">
+      <div className="mx-auto max-w-xl rounded-[1.6rem] border border-hairline bg-white px-6 py-10 text-center sm:px-10">
         <div className="flex justify-center">
           <Orb spinning={pct < 100} size={128} />
         </div>
-        <div className="font-heading mt-6 text-2xl font-bold">
-          Reviewing your payments
-        </div>
+        <div className="display mt-6 text-3xl">Reviewing your payments</div>
         <div className="mb-6 mt-2 text-sm text-muted-foreground">
-          This takes a moment. We only look at your payment history.
+          This takes a moment. We only look at money that already moved.
         </div>
         <div className="mb-6 h-2 w-full rounded bg-hairline">
           <div

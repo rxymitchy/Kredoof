@@ -13,8 +13,8 @@ export function SiteHeader() {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background/90 px-6 backdrop-blur">
-      <Link href="/" className="text-sm font-semibold tracking-[0.22em]">
-        KREDOOF
+      <Link href="/" className="text-[15px] font-medium tracking-[-0.04em]">
+        Kredoof
       </Link>
       <div className="flex items-center gap-4">
         {connectedOnAvalanche && address ? (

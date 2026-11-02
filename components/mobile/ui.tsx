@@ -51,7 +51,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "font-heading w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground",
+        "w-full rounded-full bg-primary py-3.5 text-sm font-medium text-primary-foreground",
         disabled && "cursor-default opacity-55",
         className
       )}

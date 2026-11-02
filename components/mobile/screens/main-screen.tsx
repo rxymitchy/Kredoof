@@ -13,7 +13,7 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { Avatar, Orb, PrimaryButton } from "@/components/mobile/ui";
 import {
@@ -33,7 +33,11 @@ import {
   usdcFromKes,
   explorerTxUrl,
 } from "@/lib/format";
+import { FlowChart } from "@/components/dashboard/flow-chart";
+import { ScoreRing } from "@/components/dashboard/score-ring";
+import { BrandMark } from "@/components/brand/mark";
 import { LoanPanel } from "@/components/mobile/loan-panel";
+import { firstNameOf, hello } from "@/lib/greet";
 import { bandForScore } from "@/lib/loan-bands";
 import { cn } from "@/lib/utils";
 import type {
@@ -112,6 +116,10 @@ export function MainScreen({
   const [selectedTx, setSelectedTx] = useState<OnChainTransaction | null>(
     null
   );
+  const [hi, setHi] = useState(`Hello, ${firstNameOf(applicant.owner)}`);
+  useEffect(() => {
+    setHi(hello(applicant.owner));
+  }, [applicant.owner]);
 
   const displayAddress = address
     ? shortenAddress(address)
@@ -137,18 +145,19 @@ export function MainScreen({
       <header className="sticky top-0 z-20 border-b border-hairline bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <span className="font-heading text-sm font-extrabold tracking-[0.2em]">
-              KREDOOF
+            <span className="flex items-center gap-2 text-[15px] font-medium tracking-[-0.04em]">
+              <BrandMark size={20} />
+              Kredoof
             </span>
             <span className="hidden h-4 w-px bg-hairline sm:block" />
             <div className="hidden items-center gap-2 sm:flex">
               <Avatar initials={applicant.initials} active size={32} />
               <div>
                 <div className="text-[11px] text-muted-foreground">
-                  {applicant.name}
+                  {hi}
                 </div>
-                <div className="font-heading text-sm font-bold leading-tight">
-                  {applicant.owner}
+                <div className="text-sm font-medium leading-tight">
+                  {applicant.name}
                 </div>
               </div>
             </div>
@@ -279,7 +288,7 @@ export function MainScreen({
                 className={cn(
                   "font-heading flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold",
                   tab === item.id
-                    ? "bg-primary text-white"
+                    ? "bg-foreground text-white"
                     : "text-muted-foreground hover:bg-white"
                 )}
               >
@@ -292,48 +301,72 @@ export function MainScreen({
 
         <div className="min-w-0 flex-1 pb-24 md:pb-4">
         {tab === "portfolio" ? (
-          <div className="fade-up grid gap-6 lg:grid-cols-5">
+          <div className="fade-up grid gap-6">
+            <div>
+              <div className="relative mb-6 overflow-hidden rounded-[1.6rem]">
+                <img
+                  src="/images/hero.jpg"
+                  alt="Shop till with cash and a phone"
+                  className="ken-burns h-28 w-full object-cover sm:h-44"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/55 to-transparent" />
+                <p className="absolute bottom-4 left-5 font-serif text-xl italic text-white">
+                  Your payments are the proof.
+                </p>
+              </div>
+              <p className="text-sm text-[#2f8f52] md:hidden">{hi}</p>
+              <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
+                {hi}
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                {applicant.name} · {financial.totalTransactions.toLocaleString("en-KE")} payments we can see.
+              </p>
+            </div>
+          <div className="grid gap-6 lg:grid-cols-5">
             <div className="lg:col-span-2">
-            <div
-              className="rounded-3xl px-6 py-6 sm:px-8 sm:py-8"
-              style={{
-                background:
-                  "linear-gradient(135deg, #DDF3D6 0%, #8FD9A4 100%)",
-              }}
-            >
-              <div className="text-sm text-[#215B36]/85">
-                Your credit score
-              </div>
-              <div className="font-heading mt-1 text-5xl leading-[1.1] font-extrabold text-[#123A22] sm:text-6xl">
-                {agentStage === "done" ? decision.score : "— · —"}
-              </div>
-              <div className="mt-2 text-sm text-[#215B36]/85">
-                {applicant.sector} ·{" "}
-                {financial.totalTransactions.toLocaleString("en-KE")} payments
-                found
-              </div>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-white/55 px-4 py-3">
-                  <div className="text-xs text-[#215B36]">
-                    Typical monthly activity
-                  </div>
-                  <div className="font-heading text-base font-bold text-[#123A22]">
-                    {formatUsdc(avgUsdc)}
-                  </div>
-                  <div className="text-xs text-[#215B36]/75">
-                    {financial.transactionVolumeLabel}
+            <div className="rounded-[1.6rem] border border-hairline bg-white px-6 py-6 sm:px-7 sm:py-7">
+              <div className="flex items-center gap-5">
+                <div className="relative shrink-0">
+                  <ScoreRing
+                    score={decision.score}
+                    ready={agentStage === "done"}
+                    size={132}
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="display text-3xl leading-none">
+                      {agentStage === "done" ? decision.score : "—"}
+                    </span>
+                    <span className="mt-1 text-[10px] text-muted-foreground">of 850</span>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-white/55 px-4 py-3">
-                  <div className="text-xs text-[#215B36]">Using this wallet</div>
-                  <div className="font-heading text-base font-bold text-[#123A22]">
+                <div>
+                  <p className="text-sm text-mint-deep">Your score</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {agentStage === "done"
+                      ? `${band.tier}. You can draw up to ${formatUsdt(ceilingUsdc)}.`
+                      : "Review your payments and we’ll write this in plain words."}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-canvas px-4 py-3">
+                  <div className="text-xs text-muted-foreground">Typical month</div>
+                  <div className="mt-1 text-sm font-medium">{formatUsdc(avgUsdc)}</div>
+                </div>
+                <div className="rounded-2xl bg-canvas px-4 py-3">
+                  <div className="text-xs text-muted-foreground">Wallet age</div>
+                  <div className="mt-1 text-sm font-medium">
                     {financial.walletAgeMonths} months
                   </div>
-                  <div className="text-xs text-[#215B36]/75">
-                    Paid back on time
-                  </div>
                 </div>
               </div>
+            </div>
+            <div className="mt-4 rounded-[1.6rem] border border-hairline bg-white p-4">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Money in</span>
+                <span>Money out</span>
+              </div>
+              <FlowChart points={financial.inflowsVsOutflows ?? []} />
             </div>
 
             <PrimaryButton
@@ -342,17 +375,17 @@ export function MainScreen({
               className="mt-4"
             >
               {agentStage === "done"
-                ? "Review my payments again"
-                : "Review my payments"}
+                ? "Look at my payments again"
+                : "Look at my payments"}
             </PrimaryButton>
             </div>
 
-            <div className="rounded-3xl border border-hairline bg-white p-5 sm:p-6 lg:col-span-3">
+            <div className="rounded-[1.6rem] border border-hairline bg-white p-5 sm:p-6 lg:col-span-3">
             <div className="mb-4 flex items-center justify-between">
-              <span className="font-heading text-lg font-bold">
-                Your payments
+              <span className="text-lg tracking-[-0.03em]">
+                Latest money moving
               </span>
-              <span className="text-sm text-[#a9b0a2]">
+              <span className="text-sm text-[#2f8f52]">
                 Confirmed
               </span>
             </div>
@@ -412,13 +445,14 @@ export function MainScreen({
             ))}
             </div>
           </div>
+          </div>
         ) : null}
 
         {tab === "agent" ? (
           <div className="fade-up grid items-start gap-8 md:grid-cols-2">
             <div className="rounded-3xl border border-hairline bg-white px-6 py-8 text-center">
-            <div className="font-heading mb-6 text-xl font-bold">
-              Your credit review
+            <div className="mb-6 text-xl tracking-[-0.03em]">
+              We’re reading the money
             </div>
             <div className="flex justify-center">
               <Orb spinning={agentStage === "thinking"} size={148} />
@@ -521,7 +555,7 @@ export function MainScreen({
                   <button
                     type="button"
                     onClick={() => onTab("report")}
-                    className="font-heading flex w-full items-center justify-between rounded-2xl bg-primary px-4 py-3.5 text-sm font-bold text-white"
+                    className="flex w-full items-center justify-between rounded-full bg-primary px-4 py-3.5 text-sm font-medium text-white"
                   >
                     View your documents
                     <ChevronRight size={16} />
