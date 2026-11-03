@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import os
 import re
+import secrets
 import sqlite3
 import time
 import uuid
@@ -108,8 +109,10 @@ def register(
         raise ValueError("Use an address like you@gmail.com")
     if len(phone) < 10 or len(phone) > 15:
         raise ValueError("Use a mobile number like 0712 345 678")
-    if len(password) < 8:
-        raise ValueError("Password must be at least 8 characters")
+    if not password:
+        password = secrets.token_urlsafe(32)
+    elif len(password) < 10 or not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        raise ValueError("Use at least 10 characters with letters and a number")
     conn = _connect()
     try:
         conn.execute(

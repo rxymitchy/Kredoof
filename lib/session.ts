@@ -11,6 +11,8 @@ export type KredoofSession = {
   signedIn?: boolean;
   lastSeenAt?: number;
   role?: AccountRole;
+  totpPendingEmail?: string;
+  totpPendingSecret?: string;
 };
 
 // iron-session needs 32+ chars. Local fallback is only for npm run dev — set SESSION_SECRET in production.
@@ -53,8 +55,30 @@ export async function establishSession(input: {
   session.role = parseAccountRole(input.role);
   session.signedIn = true;
   session.lastSeenAt = Date.now();
+  delete session.totpPendingEmail;
+  delete session.totpPendingSecret;
   await session.save();
   return session;
+}
+
+export async function beginTotpChallenge(email: string) {
+  const session = await getSession();
+  session.signedIn = false;
+  session.email = undefined;
+  session.phone = undefined;
+  session.name = undefined;
+  session.wallet = undefined;
+  session.totpPendingEmail = email;
+  delete session.totpPendingSecret;
+  session.lastSeenAt = Date.now();
+  await session.save();
+  return session;
+}
+
+export async function stashTotpEnrollSecret(secret: string) {
+  const session = await getSession();
+  session.totpPendingSecret = secret;
+  await session.save();
 }
 
 export async function readActiveSession() {

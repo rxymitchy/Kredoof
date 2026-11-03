@@ -54,7 +54,16 @@ async function createTables(): Promise<void> {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'borrower'`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS kes_float DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_google_live ON users (google_id) WHERE deleted_at IS NULL AND google_id IS NOT NULL`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      reset_at BIGINT NOT NULL
+    )
+  `;
   await sql`CREATE INDEX IF NOT EXISTS users_verify_hash ON users (verify_token_hash)`;
   await sql`CREATE INDEX IF NOT EXISTS users_reset_hash ON users (reset_token_hash)`;
   await sql`

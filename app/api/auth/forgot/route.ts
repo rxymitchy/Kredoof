@@ -2,9 +2,20 @@ import { NextResponse } from "next/server";
 import { sendPasswordResetEmail } from "@/lib/mail";
 import { identifierHint } from "@/lib/account-rules";
 import { requestPasswordReset } from "@/lib/persist";
+import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import { appOrigin } from "@/lib/session";
 
 export async function POST(request: Request) {
+  const wait = await tooSoon(clientKey(request, "forgot"), 6, 30 * 60 * 1000);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: "Too many reset emails. Wait a bit." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds(wait)) },
+      }
+    );
+  }
   const body = (await request.json()) as { identifier?: string; email?: string };
   const identifier = body.identifier ?? body.email ?? "";
   const invalid = identifierHint(identifier);

@@ -20,6 +20,7 @@ import {
   originationFee,
   repaymentDue,
 } from "@/lib/loan-terms";
+import { assertSafeDisbursement, undoTreasurySpend } from "@/lib/treasury-guard";
 
 const ERC20_TRANSFER = [
   {
@@ -51,6 +52,7 @@ export async function disburseFromTreasury(input: {
   const repayAmount = repaymentDue(input.amountUsdc, input.termDays);
   const sent = netDisbursed(input.amountUsdc);
   const origination = originationFee(input.amountUsdc);
+  const to = assertSafeDisbursement(input.to, sent);
   const pk = (key.startsWith("0x") ? key : `0x${key}`) as Hex;
   const account = privateKeyToAccount(pk);
   const client = createWalletClient({
@@ -58,15 +60,21 @@ export async function disburseFromTreasury(input: {
     chain: avalanche,
     transport: http("https://api.avax.network/ext/bc/C/rpc"),
   });
-  const hash = await client.writeContract({
-    address: USDT_AVALANCHE,
-    abi: ERC20_TRANSFER,
-    functionName: "transfer",
-    args: [input.to, parseUnits(sent.toFixed(6), 6)],
-  });
+  let hash: Hex;
+  try {
+    hash = await client.writeContract({
+      address: USDT_AVALANCHE,
+      abi: ERC20_TRANSFER,
+      functionName: "transfer",
+      args: [to, parseUnits(sent.toFixed(6), 6)],
+    });
+  } catch (error) {
+    undoTreasurySpend(sent);
+    throw error;
+  }
   const loan: StoredLoan = {
     id: newLoanId(),
-    wallet: input.to.toLowerCase(),
+    wallet: to.toLowerCase(),
     amount_usdc: input.amountUsdc,
     net_usdc: sent,
     origination_usdc: origination,
@@ -84,7 +92,7 @@ export async function disburseFromTreasury(input: {
   await recordLoan(loan).catch(() => null);
   const lead = await markLeadFunded({
     email: input.borrowerEmail,
-    wallet: input.to,
+    wallet: to,
     loanId: loan.id,
     leadId: input.leadId,
   }).catch(() => null);
@@ -99,6 +107,9 @@ export function treasuryErrorMessage(err: unknown): { error: string; status: num
   const message = err instanceof Error ? err.message : String(err);
   if (message.includes("TREASURY_PRIVATE_KEY") || message.includes("Treasury key")) {
     return { error: message, status: 503 };
+  }
+  if (message.includes("paused") || message.includes("limit") || message.includes("zero address")) {
+    return { error: message, status: 403 };
   }
   if (message.includes("insufficient") || message.includes("exceeds")) {
     return {

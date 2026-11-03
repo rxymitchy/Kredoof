@@ -12,9 +12,17 @@ import {
   SHORT_TERM_DAYS,
 } from "@/lib/loan-terms";
 import { readActiveSession } from "@/lib/session";
+import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import { disburseFromTreasury, treasuryErrorMessage } from "@/lib/treasury-disburse";
 
 export async function POST(request: Request) {
+  const wait = await tooSoon(clientKey(request, "fund"), 8, 10 * 60 * 1000);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: "Too many fund attempts. Wait a minute." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds(wait)) } }
+    );
+  }
   const session = await readActiveSession();
   if (!session.signedIn || !session.email) {
     return NextResponse.json({ error: "Sign in first" }, { status: 401 });

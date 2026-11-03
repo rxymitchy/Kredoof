@@ -10,6 +10,7 @@ import { FilmStill } from "@/components/marketing/film-still";
 export function AuthScreen({
   initialMode = "signup",
   initialError = null,
+  initialNotice = null,
   resetToken = "",
   initialRole = "borrower",
   onContinue,
@@ -17,6 +18,7 @@ export function AuthScreen({
 }: {
   initialMode?: AuthMode;
   initialError?: string | null;
+  initialNotice?: string | null;
   resetToken?: string;
   initialRole?: AccountRole;
   onContinue: (role: AccountRole) => void;
@@ -30,15 +32,23 @@ export function AuthScreen({
         ? "Reset your password"
         : mode === "reset"
           ? "Choose a new password"
-          : "Create your account";
+          : mode === "totp"
+            ? "Enter your app code"
+            : mode === "totp-setup"
+              ? "Protect this account"
+              : "Create your account";
   const blurb =
     mode === "signin"
-      ? "Same email or phone as last time. Then we go to the wallet."
+      ? "Same email or phone as last time. Confirm your email first if you have not yet."
       : mode === "forgot"
         ? "We’ll email a reset link if that email or phone has an account."
         : mode === "reset"
-          ? "Use at least 8 characters."
-          : "Tell us who you are. We look at the money that already moved — not a stack of statements.";
+          ? "Use at least 10 characters, with letters and a number."
+          : mode === "totp"
+            ? "Open Google Authenticator or Authy and type the 6-digit code."
+            : mode === "totp-setup"
+              ? "We strongly recommend an authenticator app. You can skip this and do it later."
+              : "Tell us who you are. We look at the money that already moved — not a stack of statements.";
 
   return (
     <div className="grid min-h-dvh bg-canvas lg:grid-cols-2">
@@ -82,6 +92,7 @@ export function AuthScreen({
           <AuthForm
             initialMode={initialMode}
             initialError={initialError}
+            initialNotice={initialNotice}
             initialRole={initialRole}
             resetToken={resetToken}
             onContinue={onContinue}

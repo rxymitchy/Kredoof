@@ -88,7 +88,7 @@ class ScoreRequest(BaseModel):
 
 class AccountRequest(BaseModel):
     email: str
-    password: str
+    password: str = ""
     name: str = ""
     first_name: str = ""
     last_name: str = ""

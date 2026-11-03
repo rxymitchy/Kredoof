@@ -15,11 +15,18 @@ import {
 } from "@/lib/account-rules";
 import { cn } from "@/lib/utils";
 
-export type AuthMode = "signin" | "signup" | "forgot" | "reset";
+export type AuthMode =
+  | "signin"
+  | "signup"
+  | "forgot"
+  | "reset"
+  | "totp"
+  | "totp-setup";
 
 export function AuthForm({
   initialMode = "signup",
   initialError = null,
+  initialNotice = null,
   resetToken = "",
   initialRole = "borrower",
   onContinue,
@@ -27,6 +34,7 @@ export function AuthForm({
 }: {
   initialMode?: AuthMode;
   initialError?: string | null;
+  initialNotice?: string | null;
   resetToken?: string;
   initialRole?: AccountRole;
   onContinue: (role: AccountRole) => void;
@@ -52,9 +60,12 @@ export function AuthForm({
     string | null
   >(null);
   const [error, setError] = useState<string | null>(initialError);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(initialNotice);
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+  const [totpSecret, setTotpSecret] = useState("");
+  const [totpAccount, setTotpAccount] = useState("");
 
   useEffect(() => {
     setAuthMode(initialMode);
@@ -63,6 +74,32 @@ export function AuthForm({
   useEffect(() => {
     setRole(parseAccountRole(initialRole));
   }, [initialRole]);
+
+  useEffect(() => {
+    if (initialMode !== "totp-setup") return;
+    let cancelled = false;
+    fetch("/api/auth/totp/setup")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.secret) {
+          setTotpSecret(data.secret);
+          setTotpAccount(data.email ?? "");
+        } else if (data.enroll === false) {
+          switchMode("totp");
+        } else if (data.error) {
+          setError(data.error);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not start two-step sign-in.");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // switchMode is stable enough for this mount path
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMode]);
 
   const firstNameError = touched.firstName
     ? nameHint(firstName, "first name")
@@ -99,6 +136,7 @@ export function AuthForm({
     setTouched({});
     setPassword("");
     setConfirmPassword("");
+    setTotpCode("");
   }
 
   async function submit() {
@@ -115,6 +153,26 @@ export function AuthForm({
     setServerEmailError(null);
     setServerPasswordError(null);
     setServerPhoneError(null);
+    if (mode === "totp" || mode === "totp-setup") {
+      if (!/^\d{6}$/.test(totpCode.trim())) {
+        setError("Enter the 6-digit code from your authenticator app.");
+        return;
+      }
+      setBusy(true);
+      const res = await fetch("/api/auth/totp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: totpCode.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) {
+        setError(data.error ?? "That code did not match.");
+        return;
+      }
+      onContinue(parseAccountRole(data.role) || role);
+      return;
+    }
     if (mode === "forgot") {
       const invalid = identifierHint(identifier);
       if (invalid) return;
@@ -203,10 +261,24 @@ export function AuthForm({
       switchMode("signin");
       setEmail(email);
       setNotice(
-        data.emailSent
-          ? "Account created. Check your email for a confirmation link, or sign in with your password."
-          : "Account created. Sign in with your email and password."
+        "Account created. Confirm the link in your email before you sign in."
       );
+      return;
+    }
+    if (data.totpRequired) {
+      switchMode("totp");
+      return;
+    }
+    if (data.totpSuggested) {
+      switchMode("totp-setup");
+      const setup = await fetch("/api/auth/totp/setup").then((r) =>
+        r.json().catch(() => ({}))
+      );
+      if (setup.secret) {
+        setTotpSecret(setup.secret);
+        setTotpAccount(setup.email ?? email ?? identifier);
+      }
+      if (data.role) setRole(parseAccountRole(data.role));
       return;
     }
     onContinue(parseAccountRole(data.role) || role);
@@ -219,7 +291,11 @@ export function AuthForm({
         ? "Send reset link"
         : mode === "reset"
           ? "Save new password"
-          : "Create my account";
+          : mode === "totp"
+            ? "Confirm code"
+            : mode === "totp-setup"
+              ? "Turn it on"
+              : "Create my account";
 
   return (
     <form
@@ -250,8 +326,12 @@ export function AuthForm({
       ) : (
         <p className="mb-5 text-sm text-muted-foreground">
           {mode === "reset"
-            ? "Use at least 8 characters."
-            : "We’ll email a reset link if that email or phone has an account."}
+            ? "Use at least 10 characters, with letters and a number."
+            : mode === "totp"
+              ? "Codes refresh every 30 seconds."
+              : mode === "totp-setup"
+                ? "Takes a minute. Keeps someone with your password from walking in."
+              : "We’ll email a reset link if that email or phone has an account."}
         </p>
       )}
       {mode === "signup" ? (
@@ -431,7 +511,7 @@ export function AuthForm({
           ) : null}
         </div>
       ) : null}
-      {mode !== "forgot" ? (
+      {mode !== "forgot" && mode !== "totp" && mode !== "totp-setup" ? (
         <div className={mode === "signin" ? "mb-2" : "mb-5"}>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">
             {mode === "reset" ? "New password" : "Password"}
@@ -451,8 +531,8 @@ export function AuthForm({
                 setServerPasswordError(null);
               }}
               onBlur={() => mark("password")}
-              placeholder="At least 8 characters"
-              minLength={8}
+              placeholder="At least 10 characters, with a number"
+              minLength={mode === "signin" ? 1 : 10}
               autoComplete={
                 mode === "signin" ? "current-password" : "new-password"
               }
@@ -491,7 +571,7 @@ export function AuthForm({
               onChange={(e) => setConfirmPassword(e.target.value)}
               onBlur={() => mark("confirm")}
               placeholder="Type it again"
-              minLength={8}
+              minLength={10}
               autoComplete="new-password"
               required
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
@@ -500,6 +580,36 @@ export function AuthForm({
           {confirmError ? (
             <p className="mt-1 text-xs text-[#C24545]">{confirmError}</p>
           ) : null}
+        </div>
+      ) : null}
+      {mode === "totp-setup" && totpSecret ? (
+        <div className="mb-5 rounded-[14px] border border-hairline bg-white px-3.5 py-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            In your authenticator app, add a key
+          </p>
+          <p className="mt-1 text-sm">
+            Account: {totpAccount || "your Kredoof email"}
+          </p>
+          <p className="mt-2 break-all font-mono text-sm tracking-wide">
+            {totpSecret}
+          </p>
+        </div>
+      ) : null}
+      {mode === "totp" || mode === "totp-setup" ? (
+        <div className="mb-5">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            6-digit code
+          </p>
+          <input
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="000000"
+            maxLength={6}
+            required
+            className="w-full rounded-[14px] border border-hairline bg-white px-3.5 py-3 text-center font-mono text-lg tracking-[0.4em] outline-none"
+          />
         </div>
       ) : null}
       {mode === "signin" ? (
@@ -532,7 +642,16 @@ export function AuthForm({
           </p>
         </>
       ) : null}
-      {mode === "forgot" || mode === "reset" ? (
+      {mode === "totp-setup" ? (
+        <button
+          type="button"
+          onClick={() => onContinue(role)}
+          className="mt-4 block w-full text-center text-sm font-semibold text-mint-deep"
+        >
+          Not now
+        </button>
+      ) : null}
+      {mode === "forgot" || mode === "reset" || mode === "totp" ? (
         <button
           type="button"
           onClick={() => switchMode("signin")}

@@ -48,6 +48,7 @@ export function KredoofApp({
   initialTab = "portfolio",
   initialAuthMode = "signup",
   initialError = null,
+  initialNotice = null,
   resetToken = "",
   initialRole = "borrower",
 }: {
@@ -55,6 +56,7 @@ export function KredoofApp({
   initialTab?: MainTab;
   initialAuthMode?: AuthMode;
   initialError?: string | null;
+  initialNotice?: string | null;
   resetToken?: string;
   initialRole?: AccountRole;
 }) {
@@ -139,7 +141,9 @@ export function KredoofApp({
           data.signedIn &&
           (startAt === "auth" || startAt === "connect") &&
           initialAuthMode !== "reset" &&
-          initialAuthMode !== "forgot"
+          initialAuthMode !== "forgot" &&
+          initialAuthMode !== "totp" &&
+          initialAuthMode !== "totp-setup"
         ) {
           setStage("connect");
         }
@@ -279,6 +283,7 @@ export function KredoofApp({
       <AuthScreen
         initialMode={authMode}
         initialError={initialError}
+        initialNotice={initialNotice}
         resetToken={resetToken}
           initialRole={initialRole}
           onContinue={(nextRole) => {

@@ -41,6 +41,8 @@ export type StoredUser = {
   googleId?: string | null;
   /** KSh the lender has put in to take files and fund loans. */
   kesFloat?: number;
+  totpSecret?: string | null;
+  totpEnabled?: boolean;
 };
 
 export type StoredLoan = {
@@ -83,11 +85,49 @@ const LEADS_PATH = `${STORE}/leads.json`;
 const VERIFY_PREFIX = `${STORE}/verify/`;
 const RESET_PREFIX = `${STORE}/reset/`;
 
-/** Slow hash so a leaked table is harder to brute-force. Salt is fixed (kredoof-v1). */
-function hashPassword(password: string): string {
-  return pbkdf2Sync(password, "kredoof-v1", 120_000, 32, "sha256").toString(
-    "hex"
-  );
+const PBKDF2_ROUNDS = 120_000;
+
+/** Unique salt per user (v2). Legacy hashes used a fixed app salt. */
+function hashPassword(password: string, salt = randomBytes(16).toString("hex")): string {
+  const digest = pbkdf2Sync(
+    password,
+    salt,
+    PBKDF2_ROUNDS,
+    32,
+    "sha256"
+  ).toString("hex");
+  return `v2:${salt}:${digest}`;
+}
+
+function hashesMatch(left: string, right: string): boolean {
+  const a = Buffer.from(left, "hex");
+  const b = Buffer.from(right, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function passwordMatches(password: string, stored: string): boolean {
+  if (stored.startsWith("v2:")) {
+    const parts = stored.split(":");
+    const salt = parts[1];
+    const digest = parts[2];
+    if (!salt || !digest) return false;
+    const actual = pbkdf2Sync(
+      password,
+      salt,
+      PBKDF2_ROUNDS,
+      32,
+      "sha256"
+    ).toString("hex");
+    return hashesMatch(actual, digest);
+  }
+  const legacy = pbkdf2Sync(
+    password,
+    "kredoof-v1",
+    PBKDF2_ROUNDS,
+    32,
+    "sha256"
+  ).toString("hex");
+  return hashesMatch(legacy, stored);
 }
 
 /** Store hashes of email-confirm / reset tokens, not the raw link. */
@@ -133,12 +173,41 @@ function blobEnabled(): boolean {
 }
 
 export class LoginError extends Error {
-  readonly field: "email" | "password" | "phone";
-  constructor(field: "email" | "password" | "phone", message: string) {
+  readonly field: "email" | "password" | "phone" | "credentials";
+  constructor(
+    field: "email" | "password" | "phone" | "credentials",
+    message: string
+  ) {
     super(message);
     this.name = "LoginError";
     this.field = field;
   }
+}
+
+const CREDENTIALS_MESSAGE = "Wrong email, phone, or password.";
+
+export type PublicAccount = {
+  email: string;
+  phone: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  wallet?: string | null;
+  role: AccountRole;
+  totpEnabled: boolean;
+};
+
+function toPublicAccount(user: StoredUser): PublicAccount {
+  return {
+    email: user.email,
+    phone: user.phone,
+    name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    wallet: user.wallet,
+    role: parseAccountRole(user.role),
+    totpEnabled: Boolean(user.totpEnabled),
+  };
 }
 
 export class DuplicateAccountError extends Error {
@@ -177,6 +246,8 @@ function normalizeUser(raw: StoredUser): StoredUser {
     role: parseAccountRole(raw.role),
     googleId: raw.googleId ?? null,
     kesFloat: Number(raw.kesFloat) > 0 ? Number(raw.kesFloat) : 0,
+    totpSecret: raw.totpSecret ?? null,
+    totpEnabled: Boolean(raw.totpEnabled),
   };
 }
 
@@ -222,6 +293,8 @@ type UserRow = {
   role: string | null;
   google_id: string | null;
   kes_float?: string | number | null;
+  totp_secret?: string | null;
+  totp_enabled?: boolean | null;
 };
 
 function num(value: string | number | null | undefined): number | null {
@@ -250,6 +323,8 @@ function userFromRow(row: UserRow): StoredUser {
     role: parseAccountRole(row.role),
     googleId: row.google_id,
     kesFloat: Number(row.kes_float) || 0,
+    totpSecret: row.totp_secret ?? null,
+    totpEnabled: Boolean(row.totp_enabled),
   });
 }
 
@@ -362,7 +437,8 @@ async function insertUserRow(user: StoredUser): Promise<void> {
     INSERT INTO users (
       id, email, phone, password_hash, first_name, last_name, name, wallet,
       email_verified, verify_token_hash, verify_token_expires,
-      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id, kes_float
+      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id, kes_float,
+      totp_secret, totp_enabled
     ) VALUES (
       ${user.id}, ${user.email}, ${user.phone}, ${user.passwordHash},
       ${user.firstName}, ${user.lastName}, ${user.name}, ${user.wallet ?? null},
@@ -370,7 +446,7 @@ async function insertUserRow(user: StoredUser): Promise<void> {
       ${user.verifyTokenExpires ?? null}, ${user.resetTokenHash ?? null},
       ${user.resetTokenExpires ?? null}, ${user.createdAt}, ${user.lastScore ?? null},
       ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}, ${user.googleId ?? null},
-      ${Number(user.kesFloat) || 0}
+      ${Number(user.kesFloat) || 0}, ${user.totpSecret ?? null}, ${Boolean(user.totpEnabled)}
     )
   `;
 }
@@ -395,7 +471,9 @@ async function updateUserRow(user: StoredUser): Promise<void> {
       deleted_at = ${user.deletedAt ?? null},
       role = ${parseAccountRole(user.role)},
       google_id = ${user.googleId ?? null},
-      kes_float = ${Number(user.kesFloat) || 0}
+      kes_float = ${Number(user.kesFloat) || 0},
+      totp_secret = ${user.totpSecret ?? null},
+      totp_enabled = ${Boolean(user.totpEnabled)}
     WHERE id = ${user.id}
   `;
 }
@@ -662,44 +740,35 @@ export async function registerUser(input: {
 export async function loginUser(
   identifierRaw: string,
   password: string
-): Promise<{
-  email: string;
-  phone: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  wallet?: string | null;
-  role: AccountRole;
-}> {
+): Promise<PublicAccount> {
   const error = validateLogin({ identifier: identifierRaw, password });
   if (error) {
-    throw new LoginError(looksLikeEmail(identifierRaw) ? "email" : "phone", error);
+    throw new LoginError("credentials", error);
   }
   const user = await getUserByIdentifier(identifierRaw);
-  if (!user) {
+  if (!user || !passwordMatches(password, user.passwordHash)) {
+    throw new LoginError("credentials", CREDENTIALS_MESSAGE);
+  }
+  if (!user.emailVerified) {
     throw new LoginError(
-      looksLikeEmail(identifierRaw) ? "email" : "phone",
-      looksLikeEmail(identifierRaw)
-        ? "No account for that email. Sign up first."
-        : "No account for that phone number. Sign up first."
+      "email",
+      "Confirm your email first. Open the link we sent, then sign in."
     );
   }
-  const actual = hashPassword(password);
-  const a = Buffer.from(actual, "hex");
-  const b = Buffer.from(user.passwordHash, "hex");
-  // timingSafeEqual avoids leaking password length via response time.
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    throw new LoginError("password", "Wrong password");
+  if (!user.passwordHash.startsWith("v2:")) {
+    user.passwordHash = hashPassword(password);
+    await saveUser(user, "update").catch(() => null);
   }
-  return {
-    email: user.email,
-    phone: user.phone,
-    name: user.name,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    wallet: user.wallet,
-    role: parseAccountRole(user.role),
-  };
+  return toPublicAccount(user);
+}
+
+export async function enableTotp(email: string, secret: string): Promise<PublicAccount> {
+  const user = await getUserByEmail(email);
+  if (!user) throw new LoginError("credentials", CREDENTIALS_MESSAGE);
+  user.totpSecret = secret;
+  user.totpEnabled = true;
+  await saveUser(user, "update");
+  return toPublicAccount(user);
 }
 
 export async function getUserByGoogleId(googleId: string): Promise<StoredUser | null> {
@@ -718,15 +787,7 @@ export async function getUserByGoogleId(googleId: string): Promise<StoredUser | 
 export async function loginWithGoogle(input: {
   googleId: string;
   email: string;
-}): Promise<{
-  email: string;
-  phone: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  wallet?: string | null;
-  role: AccountRole;
-}> {
+}): Promise<PublicAccount> {
   const googleId = input.googleId.trim();
   const email = normalizeEmail(input.email);
   if (!googleId || !email) {
@@ -754,15 +815,7 @@ export async function loginWithGoogle(input: {
   user.googleId = googleId;
   user.emailVerified = true;
   await saveUser(user, "update");
-  return {
-    email: user.email,
-    phone: user.phone,
-    name: user.name,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    wallet: user.wallet,
-    role: parseAccountRole(user.role),
-  };
+  return toPublicAccount(user);
 }
 
 export async function confirmEmailToken(tokenRaw: string): Promise<{
