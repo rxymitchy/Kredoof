@@ -18,6 +18,7 @@ import {
 import { generateReportHtml, reportIdFor } from "@/lib/report-html";
 import { bandForScore } from "@/lib/loan-bands";
 import { LONG_TERM_MIN_SCORE } from "@/lib/loan-terms";
+import type { DisplayLoan } from "@/components/mobile/loan-list";
 import type { EngineProfile } from "@/services/engine";
 import type {
   Applicant,
@@ -122,6 +123,7 @@ export function KredoofApp({
   const [openLateFee, setOpenLateFee] = useState<number | null>(null);
   const [openDueAt, setOpenDueAt] = useState<number | null>(null);
   const [openDaysPastDue, setOpenDaysPastDue] = useState(0);
+  const [loans, setLoans] = useState<DisplayLoan[]>([]);
 
   const refreshLoans = useCallback(() => {
     fetch("/api/loans/mine")
@@ -137,17 +139,11 @@ export function KredoofApp({
             due_at?: number;
             days_past_due?: number;
           } | null;
-          loans?: Array<{
-            status?: string;
-            repay_usdc?: number;
-            amount_due?: number;
-            late_fee?: number;
-            due_at?: number;
-            days_past_due?: number;
-          }>;
+          loans?: DisplayLoan[];
         }) => {
           setHasOpenLoan(Boolean(data.hasOpenLoan));
           setAllowsLongTerm(Boolean(data.allowsLongTerm));
+          setLoans(Array.isArray(data.loans) ? data.loans : []);
           const open =
             data.openLoan ??
             (data.loans ?? []).find((loan) => {
@@ -426,6 +422,7 @@ export function KredoofApp({
       openLateFee={openLateFee}
       openDueAt={openDueAt}
       openDaysPastDue={openDaysPastDue}
+      loans={loans}
       onLoanChange={refreshLoans}
       hasLiveData={hasLiveData}
       txsLoading={txsLoading}

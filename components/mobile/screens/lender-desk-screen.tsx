@@ -14,6 +14,7 @@ import {
 import { avalanche } from "wagmi/chains";
 import {
   ArrowDownToLine,
+  Banknote,
   Files,
   Loader2,
   LogOut,
@@ -24,6 +25,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { LenderDemoVideo } from "@/components/mobile/lender-demo-video";
+import { LenderLoanSection, type DisplayLoan } from "@/components/mobile/loan-list";
 import { TotpSetupPanel } from "@/components/mobile/totp-setup-panel";
 import { Avatar, PrimaryButton } from "@/components/mobile/ui";
 import {
@@ -36,7 +38,12 @@ import { BrandMark } from "@/components/brand/mark";
 import { AVALANCHE_CHAIN_ID, KREDOOF_TREASURY, USDT_AVALANCHE } from "@/lib/constants";
 import { formatKsh, formatKesOfUsdc, formatUsdt, shortenAddress, usdtFromKes } from "@/lib/format";
 import { hello } from "@/lib/greet";
-import { DAILY_INTEREST_LABEL, LEAD_FEE_KES, SHORT_TERM_DAYS } from "@/lib/loan-terms";
+import {
+  DAILY_INTEREST_LABEL,
+  LEAD_FEE_KES,
+  LONG_TERM_DAYS,
+  SHORT_TERM_DAYS,
+} from "@/lib/loan-terms";
 import { cn } from "@/lib/utils";
 import {
   activeConnectorId,
@@ -46,7 +53,7 @@ import {
 import type { MarketplaceFile } from "@/lib/marketplace-file";
 import type { DepositMethod } from "@/lib/persist";
 
-type Tab = "home" | "wallet" | "files" | "profile" | "settings";
+type Tab = "home" | "wallet" | "loans" | "files" | "profile" | "settings";
 type MethodInfo = {
   id: DepositMethod;
   label: string;
@@ -85,6 +92,7 @@ const ERC20_TRANSFER = [
 const NAV: { id: Tab; label: string; icon: typeof Wallet }[] = [
   { id: "home", label: "Home", icon: Sparkles },
   { id: "wallet", label: "Wallet", icon: Wallet },
+  { id: "loans", label: "Loans", icon: Banknote },
   { id: "files", label: "Files", icon: Files },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "settings", label: "Settings", icon: Settings },
@@ -195,6 +203,7 @@ export function LenderDeskScreen() {
   const walletChoices = useMemo(() => listedWallets(connectors), [connectors]);
   const [tab, setTab] = useState<Tab>("home");
   const [totpSetupOpen, setTotpSetupOpen] = useState(false);
+  const [fundedLoans, setFundedLoans] = useState<DisplayLoan[]>([]);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<MarketplaceFile[]>([]);
   const [mine, setMine] = useState<MarketplaceFile[]>([]);
@@ -221,11 +230,13 @@ export function LenderDeskScreen() {
       fetch("/api/lender/leads"),
       fetch("/api/lender/deposit"),
       fetch("/api/account/profile"),
+      fetch("/api/lender/loans"),
     ])
-      .then(async ([leadsRes, cashRes, profileRes]) => {
+      .then(async ([leadsRes, cashRes, profileRes, loansRes]) => {
         const data = await leadsRes.json().catch(() => ({}));
         const cash = await cashRes.json().catch(() => ({}));
         const account = await profileRes.json().catch(() => ({}));
+        const loanData = await loansRes.json().catch(() => ({}));
         if (leadsRes.status === 401 || cashRes.status === 401) {
           router.replace("/onboard?step=signin&as=lender");
           return;
@@ -252,6 +263,9 @@ export function LenderDeskScreen() {
           setLastName(account.lastName ?? "");
           setPhone(account.phone ?? "");
         }
+        if (loansRes.ok && Array.isArray(loanData.loans)) {
+          setFundedLoans(loanData.loans);
+        }
         setError(null);
       })
       .catch(() => setError("Could not load your desk"));
@@ -263,6 +277,7 @@ export function LenderDeskScreen() {
     if (
       requestedTab === "home" ||
       requestedTab === "wallet" ||
+      requestedTab === "loans" ||
       requestedTab === "files" ||
       requestedTab === "profile" ||
       requestedTab === "settings"
@@ -497,7 +512,8 @@ export function LenderDeskScreen() {
                 </h1>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                   You put in shillings, pick a qualified file, and send USDT.
-                  Sample clips are marked Sample. Wallet and Files stay real.
+                  Sample clips are marked Sample. Wallet, Loans, and Files stay
+                  real.
                 </p>
               </div>
               <ol className="grid gap-3 sm:grid-cols-2">
@@ -505,7 +521,7 @@ export function LenderDeskScreen() {
                   [
                     "Open Wallet and deposit with M-Pesa or Avalanche USDT. The balance is only money that arrived.",
                     `Take a qualified file. That exclusive look costs ${formatKsh(LEAD_FEE_KES)} from your float.`,
-                    "Fund from your float. The borrower receives USDT on Avalanche. You keep daily interest.",
+                    `Fund from your float. You earn ${DAILY_INTEREST_LABEL}. They pay back in ${SHORT_TERM_DAYS} days, or ${LONG_TERM_DAYS} if they have more trust.`,
                     "Kredoof takes 1% only when you fund. Repayment comes back as USDT when they actually pay.",
                   ] as const
                 ).map((step, i) => (
@@ -605,6 +621,22 @@ export function LenderDeskScreen() {
                   )}
                 </div>
               </section>
+            </div>
+          ) : null}
+
+          {tab === "loans" ? (
+            <div className="fade-up grid gap-6">
+              <div>
+                <p className="text-sm text-mint-deep md:hidden">{hi}</p>
+                <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
+                  Loans
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                  Funded loans, interest, and pay-by dates only after you send
+                  USDT. The Home clip is a sample.
+                </p>
+              </div>
+              <LenderLoanSection loans={fundedLoans} />
             </div>
           ) : null}
 

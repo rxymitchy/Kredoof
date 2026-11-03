@@ -1062,6 +1062,37 @@ export async function hasRepaidLoan(input: {
   return loans.some((loan) => (loan.status ?? "").toLowerCase() === "repaid");
 }
 
+export type LenderFundedLoan = StoredLoan & {
+  borrowerName?: string;
+};
+
+export async function loansForLender(
+  lenderEmail: string
+): Promise<LenderFundedLoan[]> {
+  const viewer = normalizeEmail(lenderEmail);
+  const leads = await listLeads();
+  const mine = leads.filter(
+    (lead) =>
+      lead.lender === viewer &&
+      (lead.status === "funded" || Boolean(lead.loan_id))
+  );
+  if (mine.length === 0) return [];
+  const loans = await listLoans();
+  const out: LenderFundedLoan[] = [];
+  for (const lead of mine) {
+    const loan = loans.find(
+      (item) => item.id === lead.loan_id || item.lead_id === lead.id
+    );
+    if (!loan) continue;
+    const borrower = lead.email ? await getUserByEmail(lead.email) : null;
+    out.push({
+      ...loan,
+      borrowerName: borrower?.name || undefined,
+    });
+  }
+  return out.sort((a, b) => b.created_at - a.created_at);
+}
+
 export async function setUserLastScore(emailRaw: string, score: number) {
   const user = await getUserByEmail(emailRaw);
   if (!user) return null;

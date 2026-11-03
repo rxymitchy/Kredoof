@@ -4,6 +4,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BadgeCheck,
+  Banknote,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -49,6 +50,10 @@ import { FlowChart } from "@/components/dashboard/flow-chart";
 import { ScoreRing } from "@/components/dashboard/score-ring";
 import { BrandMark } from "@/components/brand/mark";
 import { LoanPanel } from "@/components/mobile/loan-panel";
+import {
+  BorrowerLoanSection,
+  type DisplayLoan,
+} from "@/components/mobile/loan-list";
 import { SampleDemoVideo } from "@/components/mobile/sample-demo-video";
 import { AVALANCHE_CHAIN_ID } from "@/lib/constants";
 import {
@@ -74,7 +79,7 @@ const TONE = {
   prime: { bg: "#F6EFD4", fg: "#9C7B12" },
 } as const;
 
-export type MainTab = "wallet" | "home" | "profile" | "settings";
+export type MainTab = "wallet" | "home" | "loans" | "profile" | "settings";
 export type HomePane = "credit" | "review" | "docs";
 export type AgentStage = "idle" | "thinking" | "done";
 
@@ -90,6 +95,7 @@ type Profile = {
 const NAV: { id: MainTab; label: string; icon: typeof Wallet }[] = [
   { id: "home", label: "Home", icon: Sparkles },
   { id: "wallet", label: "Wallet", icon: Wallet },
+  { id: "loans", label: "Loans", icon: Banknote },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -117,6 +123,7 @@ export function MainScreen({
   openLateFee = null,
   openDueAt = null,
   openDaysPastDue = 0,
+  loans = [],
   onLoanChange,
   onDisconnectWallet,
   onDeleteAccount,
@@ -145,6 +152,7 @@ export function MainScreen({
   openLateFee?: number | null;
   openDueAt?: number | null;
   openDaysPastDue?: number;
+  loans?: DisplayLoan[];
   onLoanChange?: () => void;
   onDisconnectWallet?: () => void;
   onDeleteAccount?: () => void;
@@ -506,6 +514,36 @@ export function MainScreen({
           </div>
         ) : null}
 
+        {tab === "loans" ? (
+          <div className="fade-up mb-8 grid gap-6">
+            <div>
+              <p className="text-sm text-mint-deep md:hidden">{hi}</p>
+              <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
+                Loans
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                Amounts and pay-by dates only show after a lender actually funds
+                you. The Home clip is a sample.
+              </p>
+            </div>
+            <BorrowerLoanSection loans={loans} allowsLongTerm={allowsLongTerm} />
+            {hasLiveData ? (
+              <LoanPanel
+                eligible={decision.recommendedLimitKsh > 0}
+                limitUsdc={usdcFromKes(decision.recommendedLimitKsh)}
+                allowsLongTerm={allowsLongTerm}
+                hasOpenLoan={hasOpenLoan}
+                openRepayUsdc={openRepayUsdc}
+                openAmountDue={openAmountDue}
+                openLateFee={openLateFee}
+                openDueAt={openDueAt}
+                openDaysPastDue={openDaysPastDue}
+                onLoanChange={onLoanChange}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
         {tab === "home" ? (
           <div className="fade-up grid gap-6">
             <div>
@@ -515,7 +553,8 @@ export function MainScreen({
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                 Watch how it works, then connect a real wallet. Sample clips are
-                marked Sample. Your money only appears under Wallet.
+                marked Sample. Your money only appears under Wallet. Funded
+                loans live under Loans.
               </p>
             </div>
             <ol className="grid gap-3 sm:grid-cols-2">
@@ -524,7 +563,7 @@ export function MainScreen({
                   "Open Wallet and connect MetaMask, Core, or Trust on Avalanche.",
                   "Approve in the app so we know the wallet is yours.",
                   "We read USDT and USDC that actually moved on the chain.",
-                  "If that checks out, a lender can fund you.",
+                  "If that checks out, a lender can fund you. Pay back in 16 days, or 30 days with more trust. Interest is 0.06% a day.",
                 ] as const
               ).map((step, i) => (
                 <li
@@ -780,18 +819,6 @@ export function MainScreen({
                     View your documents
                     <ChevronRight size={16} />
                   </button>
-                  <LoanPanel
-                    eligible={decision.recommendedLimitKsh > 0}
-                    limitUsdc={usdcFromKes(decision.recommendedLimitKsh)}
-                    allowsLongTerm={allowsLongTerm}
-                    hasOpenLoan={hasOpenLoan}
-                    openRepayUsdc={openRepayUsdc}
-                    openAmountDue={openAmountDue}
-                    openLateFee={openLateFee}
-                    openDueAt={openDueAt}
-                    openDaysPastDue={openDaysPastDue}
-                    onLoanChange={onLoanChange}
-                  />
                   <p className="mt-4 text-sm leading-6 text-muted-foreground">
                     This is a snapshot. Keep using your wallet for payments and
                     your score can change over time.
@@ -1131,7 +1158,7 @@ export function MainScreen({
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-white/95 px-4 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-white/95 px-2 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
         <div className="mx-auto flex max-w-lg items-center justify-around">
         {NAV.map((item) => (
           <button
@@ -1139,13 +1166,13 @@ export function MainScreen({
             type="button"
             onClick={() => onTab(item.id)}
             className={cn(
-              "flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold",
+              "flex flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 text-[11px] font-semibold",
               tab === item.id ? "text-foreground" : "text-[#a9b0a2]"
             )}
           >
             <span
               className={cn(
-                "flex h-8 w-12 items-center justify-center rounded-xl",
+                "flex h-8 w-10 items-center justify-center rounded-xl",
                 tab === item.id ? "bg-mint-deep text-white" : "bg-transparent"
               )}
             >

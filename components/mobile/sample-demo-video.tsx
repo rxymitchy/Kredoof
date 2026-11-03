@@ -3,7 +3,7 @@
 import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-const DURATION_MS = 16000;
+const DURATION_MS = 20000;
 
 const SAMPLE_ROWS = [
   { kind: "in" as const, amount: "2,450.00 USDT", kes: "KSh 316,030", when: "21 Aug" },
@@ -37,13 +37,23 @@ export function SampleDemoVideo() {
 
   const progress = elapsed / DURATION_MS;
   const scene =
-    progress < 0.28 ? "connect" : progress < 0.72 ? "payments" : "score";
+    progress < 0.22
+      ? "connect"
+      : progress < 0.48
+        ? "payments"
+        : progress < 0.72
+          ? "score"
+          : "repay";
 
   return (
     <section className="overflow-hidden rounded-[1.6rem] border border-hairline bg-black text-white">
       <div className="relative aspect-video w-full overflow-hidden">
         <img
-          src={scene === "score" ? "/images/count.jpg" : "/images/hero.jpg"}
+          src={
+            scene === "score" || scene === "repay"
+              ? "/images/count.jpg"
+              : "/images/hero.jpg"
+          }
           alt=""
           className="absolute inset-0 h-full w-full object-cover opacity-35"
         />
@@ -118,7 +128,21 @@ export function SampleDemoVideo() {
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
                 This number is only in the demo. Yours is calculated after a
-                real wallet is connected.
+                real wallet is connected. 742 unlocks the 30-day payback.
+              </p>
+            </div>
+          ) : null}
+          {scene === "repay" ? (
+            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
+              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
+                Sample loan — not yours
+              </p>
+              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
+                Pay back in 16 or 30 days
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Interest is 0.06% a day. 16 days is the standard term. 30 days
+                opens when the score is strong or a loan was already repaid.
               </p>
             </div>
           ) : null}

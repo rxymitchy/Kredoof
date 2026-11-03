@@ -3,9 +3,15 @@
 import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatKsh } from "@/lib/format";
-import { DAILY_INTEREST_LABEL, LEAD_FEE_KES, SHORT_TERM_DAYS } from "@/lib/loan-terms";
+import {
+  DAILY_INTEREST_LABEL,
+  LEAD_FEE_KES,
+  LONG_TERM_DAYS,
+  LONG_TERM_MIN_SCORE,
+  SHORT_TERM_DAYS,
+} from "@/lib/loan-terms";
 
-const DURATION_MS = 18000;
+const DURATION_MS = 20000;
 
 function clock(ms: number) {
   const total = Math.floor(ms / 1000);
@@ -32,13 +38,23 @@ export function LenderDemoVideo() {
 
   const progress = elapsed / DURATION_MS;
   const scene =
-    progress < 0.32 ? "deposit" : progress < 0.66 ? "file" : "fund";
+    progress < 0.25
+      ? "deposit"
+      : progress < 0.5
+        ? "file"
+        : progress < 0.75
+          ? "fund"
+          : "given";
 
   return (
     <section className="overflow-hidden rounded-[1.6rem] border border-hairline bg-black text-white">
       <div className="relative aspect-video w-full overflow-hidden">
         <img
-          src={scene === "fund" ? "/images/count.jpg" : "/images/hero.jpg"}
+          src={
+            scene === "fund" || scene === "given"
+              ? "/images/count.jpg"
+              : "/images/hero.jpg"
+          }
           alt=""
           className="absolute inset-0 h-full w-full object-cover opacity-35"
         />
@@ -100,9 +116,24 @@ export function LenderDemoVideo() {
                 You think in shillings
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                They receive USDT on Avalanche. Daily interest {DAILY_INTEREST_LABEL}{" "}
-                is yours over {SHORT_TERM_DAYS} days. Kredoof takes 1% only when you
-                fund.
+                They receive USDT on Avalanche. You earn {DAILY_INTEREST_LABEL}.
+                They pay back in {SHORT_TERM_DAYS} days, or {LONG_TERM_DAYS} if
+                score is {LONG_TERM_MIN_SCORE}+ or they already repaid. Kredoof
+                takes 1% only when you fund.
+              </p>
+            </div>
+          ) : null}
+          {scene === "given" ? (
+            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
+              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
+                Sample funded loan — not yours
+              </p>
+              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
+                Interest comes back with the USDT
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Real funded loans show under Loans with the term, {DAILY_INTEREST_LABEL},
+                and the pay-by date. This clip is only a preview.
               </p>
             </div>
           ) : null}

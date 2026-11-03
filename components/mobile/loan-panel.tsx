@@ -141,79 +141,88 @@ export function LoanPanel({
       <div className="mt-3 text-sm font-semibold">
         Approved up to {formatUsdt(amount)} ({formatKesOfUsdc(amount)})
       </div>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        You receive {formatUsdt(received)} on Avalanche. A lender puts in
-        shillings; we convert at the listed rate and send USDT. Send back USDT
-        on time.
-      </p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setTermDays(SHORT_TERM_DAYS)}
-          disabled={hasOpenLoan}
-          className={cn(
-            "rounded-xl border px-3 py-3 text-left text-xs font-semibold",
-            termDays === SHORT_TERM_DAYS
-              ? "border-mint-deep bg-mint"
-              : "border-hairline bg-white"
-          )}
-        >
-          Pay in 16 days
-          <div className="mt-1 font-normal text-muted-foreground">
-            Send back {formatUsdt(repaymentDue(amount, SHORT_TERM_DAYS))}
+      {hasOpenLoan ? (
+        <>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Send back {formatUsdt(repayAmount)}
+            {dueDate ? ` by ${dueDate}` : ""}.
+          </p>
+          {openDaysPastDue > 0 ? (
+            <p className="mt-2 text-xs font-semibold text-[#C24545]">
+              {dueDate
+                ? `This was due ${dueDate}. Pay today.`
+                : "This loan is past due. Pay today."}
+              {openLateFee && openLateFee > 0
+                ? ` A late charge of ${formatUsdt(openLateFee)} has been added. Send ${formatUsdt(repayAmount)}.`
+                : ""}
+            </p>
+          ) : null}
+          <div className="mt-3">
+            <PrimaryButton
+              onClick={repay}
+              disabled={isPending || !address}
+            >
+              Pay it back
+            </PrimaryButton>
           </div>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (allowsLongTerm) setTermDays(LONG_TERM_DAYS);
-          }}
-          disabled={hasOpenLoan || !allowsLongTerm}
-          className={cn(
-            "rounded-xl border px-3 py-3 text-left text-xs font-semibold disabled:opacity-50",
-            termDays === LONG_TERM_DAYS
-              ? "border-mint-deep bg-mint"
-              : "border-hairline bg-white"
-          )}
-        >
-          Pay in 30 days
-          <div className="mt-1 font-normal text-muted-foreground">
-            {allowsLongTerm
-              ? `Send back ${formatUsdt(repaymentDue(amount, LONG_TERM_DAYS))}`
-              : "Unlocks after a paid loan or a stronger score"}
+        </>
+      ) : (
+        <>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            You receive {formatUsdt(received)} on Avalanche. A lender puts in
+            shillings; we convert at the listed rate and send USDT. Send back
+            USDT on time.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setTermDays(SHORT_TERM_DAYS)}
+              className={cn(
+                "rounded-xl border px-3 py-3 text-left text-xs font-semibold",
+                termDays === SHORT_TERM_DAYS
+                  ? "border-mint-deep bg-mint"
+                  : "border-hairline bg-white"
+              )}
+            >
+              16 days
+              <div className="mt-1 font-normal text-muted-foreground">
+                Send back {formatUsdt(repaymentDue(amount, SHORT_TERM_DAYS))}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (allowsLongTerm) setTermDays(LONG_TERM_DAYS);
+              }}
+              disabled={!allowsLongTerm}
+              className={cn(
+                "rounded-xl border px-3 py-3 text-left text-xs font-semibold disabled:opacity-50",
+                termDays === LONG_TERM_DAYS
+                  ? "border-mint-deep bg-mint"
+                  : "border-hairline bg-white"
+              )}
+            >
+              30 days
+              <div className="mt-1 font-normal text-muted-foreground">
+                {allowsLongTerm
+                  ? `Send back ${formatUsdt(repaymentDue(amount, LONG_TERM_DAYS))}`
+                  : "Unlocks after a paid loan or a stronger score"}
+              </div>
+            </button>
           </div>
-        </button>
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Send back {formatUsdt(hasOpenLoan ? repayAmount : due)}
-        {hasOpenLoan && dueDate ? ` by ${dueDate}` : ` in ${termDays} days`}.
-      </p>
-      {hasOpenLoan && openDaysPastDue > 0 ? (
-        <p className="mt-2 text-xs font-semibold text-[#C24545]">
-          {dueDate
-            ? `This was due ${dueDate}. Pay today.`
-            : "This loan is past due. Pay today."}
-          {openLateFee && openLateFee > 0
-            ? ` A late charge of ${formatUsdt(openLateFee)} has been added. Send ${formatUsdt(repayAmount)}.`
-            : ""}
-        </p>
-      ) : null}
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <PrimaryButton
-          onClick={draw}
-          disabled={isPending || !address || hasOpenLoan}
-        >
-          Get the loan
-        </PrimaryButton>
-        <button
-          type="button"
-          onClick={repay}
-          disabled={isPending || !address || !hasOpenLoan}
-          className="font-heading rounded-2xl bg-mint-deep px-4 py-3 text-sm font-bold text-white disabled:opacity-55"
-        >
-          Pay it back
-        </button>
-      </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Send back {formatUsdt(due)} in {termDays} days.
+          </p>
+          <div className="mt-3">
+            <PrimaryButton
+              onClick={draw}
+              disabled={isPending || !address}
+            >
+              Get the loan
+            </PrimaryButton>
+          </div>
+        </>
+      )}
       {status ? (
         <p className="mt-3 text-xs text-muted-foreground">{status}</p>
       ) : null}
