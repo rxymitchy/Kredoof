@@ -180,7 +180,16 @@ export function KredoofApp({
       .then((res) => res.json())
       .then((data: { signedIn?: boolean; role?: AccountRole }) => {
         if (cancelled) return;
-        if (data.signedIn && data.role === "lender" && startAt !== "main") {
+        if (
+          data.signedIn &&
+          data.role === "lender" &&
+          startAt !== "main" &&
+          initialAuthMode !== "totp" &&
+          initialAuthMode !== "totp-setup" &&
+          initialAuthMode !== "reset" &&
+          initialAuthMode !== "forgot" &&
+          initialAuthMode !== "confirm"
+        ) {
           router.replace("/lend");
           setSessionReady(true);
           return;
@@ -359,7 +368,9 @@ export function KredoofApp({
           initialRole={initialRole}
           onContinue={(nextRole) => {
             if (nextRole === "lender") {
-              router.push("/lend");
+              router.push(
+                authMode === "totp-setup" ? "/lend?tab=settings" : "/lend"
+              );
               return;
             }
             router.push("/dashboard");

@@ -24,6 +24,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { LenderDemoVideo } from "@/components/mobile/lender-demo-video";
+import { TotpSetupPanel } from "@/components/mobile/totp-setup-panel";
 import { Avatar, PrimaryButton } from "@/components/mobile/ui";
 import {
   Sheet,
@@ -193,6 +194,7 @@ export function LenderDeskScreen() {
   const [walletPicker, setWalletPicker] = useState(false);
   const walletChoices = useMemo(() => listedWallets(connectors), [connectors]);
   const [tab, setTab] = useState<Tab>("home");
+  const [totpSetupOpen, setTotpSetupOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<MarketplaceFile[]>([]);
   const [mine, setMine] = useState<MarketplaceFile[]>([]);
@@ -257,6 +259,16 @@ export function LenderDeskScreen() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab");
+    if (
+      requestedTab === "home" ||
+      requestedTab === "wallet" ||
+      requestedTab === "files" ||
+      requestedTab === "profile" ||
+      requestedTab === "settings"
+    ) {
+      setTab(requestedTab);
+    }
     if (params.get("deposit") === "ok") {
       setNotice("Payment received. Your wallet is updated.");
       setTab("wallet");
@@ -777,17 +789,33 @@ export function LenderDeskScreen() {
                         setProfile((current) =>
                           current ? { ...current, totpEnabled: false } : current
                         );
-                        router.push("/onboard?step=totp-setup");
+                        setError(null);
+                        setTotpSetupOpen(true);
                       })();
                     }}
                     className="mt-3 text-sm font-semibold text-[#C24545]"
                   >
                     Turn off and set up again
                   </button>
+                ) : totpSetupOpen ? (
+                  <TotpSetupPanel
+                    onDone={() => {
+                      setTotpSetupOpen(false);
+                      setProfile((current) =>
+                        current ? { ...current, totpEnabled: true } : current
+                      );
+                      setNotice("Authenticator is on.");
+                      setError(null);
+                    }}
+                    onCancel={() => setTotpSetupOpen(false)}
+                  />
                 ) : (
                   <button
                     type="button"
-                    onClick={() => router.push("/onboard?step=totp-setup")}
+                    onClick={() => {
+                      setError(null);
+                      setTotpSetupOpen(true);
+                    }}
                     className="mt-3 text-sm font-semibold text-mint-deep"
                   >
                     Set up authenticator

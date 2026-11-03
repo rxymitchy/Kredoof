@@ -20,8 +20,8 @@ const password =
   process.env.SESSION_SECRET?.padEnd(32, "k") ??
   "kredoof-dev-session-secret-key!!";
 
-/** Signed-in cookie lasts 1 hour, refreshed on each authenticated request. */
-export const SESSION_TTL_SECONDS = 60 * 60;
+/** Signed-in cookie lasts 15 minutes of inactivity. Using the app resets the timer. */
+export const SESSION_TTL_SECONDS = 15 * 60;
 
 const sessionOptions: SessionOptions = {
   password: password.slice(0, 64).padEnd(32, "x"),
@@ -97,7 +97,7 @@ export async function readActiveSession() {
     session.destroy();
     return empty;
   }
-  session.lastSeenAt = Date.now(); // sliding 1 hour while they keep using the app
+  session.lastSeenAt = Date.now(); // using the app resets the 15-minute inactivity timer
   await session.save();
   return {
     signedIn: true as const,

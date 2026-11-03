@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Outfit, Spectral } from "next/font/google";
+import { SessionKeepAlive } from "@/components/session-keep-alive";
 import "./globals.css";
 
 const sans = Outfit({
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <SessionKeepAlive />
         {children}
       </body>
     </html>
