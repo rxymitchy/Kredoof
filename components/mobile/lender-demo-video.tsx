@@ -2,16 +2,12 @@
 
 import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { DemoAppShot } from "@/components/mobile/demo-app-shot";
 import { formatKsh } from "@/lib/format";
-import {
-  DAILY_INTEREST_LABEL,
-  LEAD_FEE_KES,
-  LONG_TERM_DAYS,
-  LONG_TERM_MIN_SCORE,
-  SHORT_TERM_DAYS,
-} from "@/lib/loan-terms";
+import { LEAD_FEE_KES } from "@/lib/loan-terms";
 
 const DURATION_MS = 20000;
+const TABS = ["Home", "Wallet", "Loans", "Files", "Profile", "Settings"];
 
 function clock(ms: number) {
   const total = Math.floor(ms / 1000);
@@ -59,83 +55,106 @@ export function LenderDemoVideo() {
           className="absolute inset-0 h-full w-full object-cover opacity-35"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/25" />
-        <span className="absolute top-3 left-3 rounded-full bg-[#C24545] px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase">
+        <span className="absolute top-3 left-3 z-10 rounded-full bg-[#C24545] px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase">
           Sample
         </span>
         <div className="absolute inset-x-0 top-10 bottom-12 flex items-center justify-center px-4 sm:px-8">
           {scene === "deposit" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Step 1 · your float
-              </p>
-              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
-                Deposit real money
-              </p>
-              <p className="font-heading mt-2 text-4xl font-bold tracking-[-0.05em] text-mint-deep">
-                {formatKsh(50000)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Sample balance only. Yours stays empty until M-Pesa or Avalanche USDT
-                actually arrives.
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {["M-Pesa", "Avalanche USDT"].map((label) => (
-                  <div
-                    key={label}
-                    className="rounded-xl bg-mint-deep px-2 py-3 text-center text-xs font-semibold text-white"
-                  >
-                    {label}
-                  </div>
-                ))}
+            <DemoAppShot tab="Wallet" tabs={TABS} title="Wallet">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <p className="text-sm text-muted-foreground">Available</p>
+                <p className="font-heading text-3xl font-bold tracking-[-0.05em] text-mint-deep">
+                  {formatKsh(50000)}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {["M-Pesa", "Avalanche USDT"].map((label) => (
+                    <div
+                      key={label}
+                      className="rounded-xl bg-mint-deep px-2 py-3 text-center text-xs font-semibold text-white"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </DemoAppShot>
           ) : null}
           {scene === "file" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Step 2 · take a file
-              </p>
-              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
-                Qualified file
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Sample score 742 · you would put in {formatKsh(25000)}
-              </p>
-              <p className="mt-3 rounded-xl bg-canvas px-3 py-2 text-sm">
-                Exclusive look costs {formatKsh(LEAD_FEE_KES)} from your float.
-                Wallet address shows after you take it — not before.
-              </p>
-            </div>
+            <DemoAppShot tab="Files" tabs={TABS} title="Files">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-heading text-sm font-bold">Qualified file</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Score 742 · you put in {formatKsh(25000)}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    offered
+                  </span>
+                </div>
+                <div className="mt-3 rounded-2xl bg-mint-deep px-4 py-2.5 text-center text-sm font-bold text-white">
+                  Take file · {formatKsh(LEAD_FEE_KES)}
+                </div>
+              </div>
+            </DemoAppShot>
           ) : null}
           {scene === "fund" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Step 3 · send USDT
-              </p>
-              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
-                You think in shillings
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                They receive USDT on Avalanche. You earn {DAILY_INTEREST_LABEL}.
-                They pay back in {SHORT_TERM_DAYS} days, or {LONG_TERM_DAYS} if
-                score is {LONG_TERM_MIN_SCORE}+ or they already repaid. Kredoof
-                takes 1% only when you fund.
-              </p>
-            </div>
+            <DemoAppShot tab="Files" tabs={TABS} title="Files">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-heading text-sm font-bold">Amina N.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Score 742 · {formatKsh(25000)}
+                    </p>
+                    <p className="font-mono mt-1 text-[11px] text-muted-foreground">
+                      0x7B2...91a4
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    claimed
+                  </span>
+                </div>
+                <div className="mt-3 rounded-2xl bg-mint-deep px-4 py-2.5 text-center text-sm font-bold text-white">
+                  Send {formatKsh(25000)} as USDT
+                </div>
+              </div>
+            </DemoAppShot>
           ) : null}
           {scene === "given" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Sample funded loan — not yours
-              </p>
-              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
-                Interest comes back with the USDT
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Real funded loans show under Loans with the term, {DAILY_INTEREST_LABEL},
-                and the pay-by date. This clip is only a preview.
-              </p>
-            </div>
+            <DemoAppShot tab="Loans" tabs={TABS} title="Loans">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Amina N.</p>
+                    <p className="font-heading text-lg font-bold">193.20 USDT</p>
+                    <p className="text-xs text-muted-foreground">≈ KES 25,000</p>
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    Open
+                  </span>
+                </div>
+                <dl className="mt-2 grid gap-1 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Interest</dt>
+                    <dd>0.06% a day · 1.85 USDT</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Term</dt>
+                    <dd>16 days</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">They send back</dt>
+                    <dd>195.05 USDT</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Pay by</dt>
+                    <dd>19 Nov 2026</dd>
+                  </div>
+                </dl>
+              </div>
+            </DemoAppShot>
           ) : null}
         </div>
         <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-black/70 px-3 py-2">

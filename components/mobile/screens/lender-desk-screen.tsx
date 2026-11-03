@@ -238,7 +238,7 @@ export function LenderDeskScreen() {
         const account = await profileRes.json().catch(() => ({}));
         const loanData = await loansRes.json().catch(() => ({}));
         if (leadsRes.status === 401 || cashRes.status === 401) {
-          router.replace("/onboard?step=signin&as=lender");
+          router.replace("/");
           return;
         }
         if (leadsRes.status === 403 || cashRes.status === 403) {

@@ -1,6 +1,9 @@
 import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import { SESSION_TTL_SECONDS } from "@/lib/session-lifetime";
+
+export { SESSION_TTL_SECONDS } from "@/lib/session-lifetime";
 
 export type KredoofSession = {
   nonce?: string;
@@ -19,9 +22,6 @@ export type KredoofSession = {
 const password =
   process.env.SESSION_SECRET?.padEnd(32, "k") ??
   "kredoof-dev-session-secret-key!!";
-
-/** Signed-in cookie lasts 15 minutes of inactivity. Using the app resets the timer. */
-export const SESSION_TTL_SECONDS = 15 * 60;
 
 const sessionOptions: SessionOptions = {
   password: password.slice(0, 64).padEnd(32, "x"),

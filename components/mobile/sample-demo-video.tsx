@@ -2,8 +2,11 @@
 
 import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ScoreRing } from "@/components/dashboard/score-ring";
+import { DemoAppShot } from "@/components/mobile/demo-app-shot";
 
 const DURATION_MS = 20000;
+const TABS = ["Home", "Wallet", "Loans", "Profile", "Settings"];
 
 const SAMPLE_ROWS = [
   { kind: "in" as const, amount: "2,450.00 USDT", kes: "KSh 316,030", when: "21 Aug" },
@@ -58,93 +61,120 @@ export function SampleDemoVideo() {
           className="absolute inset-0 h-full w-full object-cover opacity-35"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/25" />
-        <span className="absolute top-3 left-3 rounded-full bg-[#C24545] px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase">
+        <span className="absolute top-3 left-3 z-10 rounded-full bg-[#C24545] px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase">
           Sample
         </span>
         <div className="absolute inset-x-0 top-10 bottom-12 flex items-center justify-center px-4 sm:px-8">
           {scene === "connect" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Step 1
-              </p>
-              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
-                Connect a wallet
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                MetaMask, Core, or Trust — Avalanche only.
-              </p>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {["MetaMask", "Core", "Trust"].map((label) => (
+            <DemoAppShot tab="Wallet" tabs={TABS} title="Wallet">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <div className="grid grid-cols-3 gap-2">
+                  {["MetaMask", "Core", "Trust"].map((label) => (
+                    <div
+                      key={label}
+                      className="rounded-xl bg-mint-deep px-2 py-3 text-center text-xs font-semibold text-white"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DemoAppShot>
+          ) : null}
+          {scene === "payments" ? (
+            <DemoAppShot tab="Wallet" tabs={TABS} title="Wallet">
+              <div className="overflow-hidden rounded-2xl border border-hairline bg-white">
+                {SAMPLE_ROWS.map((row) => (
                   <div
-                    key={label}
-                    className="rounded-xl bg-mint-deep px-2 py-3 text-center text-xs font-semibold text-white"
+                    key={row.when + row.amount}
+                    className="flex items-center justify-between border-b border-hairline px-3 py-2 last:border-0"
                   >
-                    {label}
+                    <span className="text-sm">
+                      {row.kind === "in" ? "Money in" : "Money out"}
+                      <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+                        {row.when}
+                      </span>
+                    </span>
+                    <span
+                      className="text-right text-xs font-semibold"
+                      style={{ color: row.kind === "in" ? "#3FA65C" : "#C24545" }}
+                    >
+                      {row.kind === "in" ? "+" : "−"}
+                      {row.amount}
+                      <span className="mt-0.5 block font-normal text-muted-foreground">
+                        {row.kes}
+                      </span>
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-          ) : null}
-          {scene === "payments" ? (
-            <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white/95 text-foreground shadow-xl">
-              <p className="border-b border-hairline px-4 py-2 text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Sample payments — not your wallet
-              </p>
-              {SAMPLE_ROWS.map((row) => (
-                <div
-                  key={row.when + row.amount}
-                  className="flex items-center justify-between border-b border-hairline px-4 py-2.5 last:border-0"
-                >
-                  <span className="text-sm">
-                    {row.kind === "in" ? "Money in" : "Money out"}
-                    <span className="ml-2 font-mono text-[10px] text-muted-foreground">
-                      {row.when}
-                    </span>
-                  </span>
-                  <span
-                    className="text-right text-xs font-semibold"
-                    style={{ color: row.kind === "in" ? "#3FA65C" : "#C24545" }}
-                  >
-                    {row.kind === "in" ? "+" : "−"}
-                    {row.amount}
-                    <span className="mt-0.5 block font-normal text-muted-foreground">
-                      {row.kes}
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
+            </DemoAppShot>
           ) : null}
           {scene === "score" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-5 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Step 3 · sample score
-              </p>
-              <p className="font-heading mt-2 text-5xl font-bold tracking-[-0.06em]">
-                742
-                <span className="ml-1 text-lg font-medium text-muted-foreground">
-                  / 850
-                </span>
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                This number is only in the demo. Yours is calculated after a
-                real wallet is connected. 742 unlocks the 30-day payback.
-              </p>
-            </div>
+            <DemoAppShot tab="Home" tabs={TABS} title="Your credit">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative shrink-0">
+                    <ScoreRing score={742} ready size={96} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="display text-xl leading-none">742</span>
+                      <span className="text-[9px] text-muted-foreground">of 850</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-mint-deep">Your score</p>
+                    <p className="text-sm font-semibold">Strong</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-canvas px-3 py-2">
+                    <div className="text-[10px] text-muted-foreground">Typical month</div>
+                    <div className="text-sm font-medium">910.00 USDC</div>
+                  </div>
+                  <div className="rounded-xl bg-canvas px-3 py-2">
+                    <div className="text-[10px] text-muted-foreground">Wallet age</div>
+                    <div className="text-sm font-medium">14 months</div>
+                  </div>
+                </div>
+              </div>
+            </DemoAppShot>
           ) : null}
           {scene === "repay" ? (
-            <div className="w-full max-w-md rounded-2xl bg-white/95 p-4 text-foreground shadow-xl">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
-                Sample loan — not yours
-              </p>
-              <p className="mt-1 text-lg font-semibold tracking-[-0.04em]">
-                Pay back in 16 or 30 days
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Interest is 0.06% a day. 16 days is the standard term. 30 days
-                opens when the score is strong or a loan was already repaid.
-              </p>
-            </div>
+            <DemoAppShot tab="Loans" tabs={TABS} title="Loans">
+              <div className="rounded-2xl border border-hairline bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Loan received</p>
+                    <p className="font-heading text-lg font-bold">193.20 USDT</p>
+                    <p className="text-xs text-muted-foreground">≈ KES 25,000</p>
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    Open
+                  </span>
+                </div>
+                <dl className="mt-2 grid gap-1 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Interest</dt>
+                    <dd>0.06% a day · 1.85 USDT</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Term</dt>
+                    <dd>16 days</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Send back</dt>
+                    <dd>195.05 USDT</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Pay by</dt>
+                    <dd>19 Nov 2026</dd>
+                  </div>
+                </dl>
+                <div className="mt-3 rounded-2xl bg-mint-deep px-4 py-2.5 text-center text-sm font-bold text-white">
+                  Pay it back
+                </div>
+              </div>
+            </DemoAppShot>
           ) : null}
         </div>
         <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-black/70 px-3 py-2">
