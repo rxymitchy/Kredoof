@@ -143,7 +143,8 @@ export function KredoofApp({
           initialAuthMode !== "reset" &&
           initialAuthMode !== "forgot" &&
           initialAuthMode !== "totp" &&
-          initialAuthMode !== "totp-setup"
+          initialAuthMode !== "totp-setup" &&
+          initialAuthMode !== "confirm"
         ) {
           setStage("connect");
         }

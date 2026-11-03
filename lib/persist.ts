@@ -186,6 +186,19 @@ export class LoginError extends Error {
 
 const CREDENTIALS_MESSAGE = "Wrong email, phone, or password.";
 
+export class UnverifiedEmailError extends Error {
+  readonly accountEmail: string;
+  readonly accountName: string;
+  constructor(accountEmail: string, accountName: string) {
+    super(
+      "Confirm your email first. We sent a new link — check inbox and spam."
+    );
+    this.name = "UnverifiedEmailError";
+    this.accountEmail = accountEmail;
+    this.accountName = accountName;
+  }
+}
+
 export type PublicAccount = {
   email: string;
   phone: string;
@@ -737,6 +750,26 @@ export async function registerUser(input: {
   return { email, phone, name, firstName, lastName, verifyToken: verify.token, role };
 }
 
+/** New 24-hour confirm link for an account that has not confirmed yet. */
+export async function issueEmailConfirmToken(
+  emailRaw: string
+): Promise<{ token: string; email: string; name: string } | null> {
+  const user = await getUserByEmail(emailRaw);
+  if (!user || user.emailVerified) return null;
+  const verify = newToken(24);
+  user.verifyTokenHash = verify.hash;
+  user.verifyTokenExpires = verify.expires;
+  await saveUser(user, "update");
+  if (!(await usingDb())) {
+    await writeObject(
+      verifyObjectPath(verify.hash),
+      { id: user.id, email: user.email, expires: verify.expires },
+      "update"
+    ).catch(() => null);
+  }
+  return { token: verify.token, email: user.email, name: user.name };
+}
+
 export async function loginUser(
   identifierRaw: string,
   password: string
@@ -750,10 +783,7 @@ export async function loginUser(
     throw new LoginError("credentials", CREDENTIALS_MESSAGE);
   }
   if (!user.emailVerified) {
-    throw new LoginError(
-      "email",
-      "Confirm your email first. Open the link we sent, then sign in."
-    );
+    throw new UnverifiedEmailError(user.email, user.name);
   }
   if (!user.passwordHash.startsWith("v2:")) {
     user.passwordHash = hashPassword(password);

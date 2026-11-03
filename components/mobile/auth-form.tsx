@@ -20,6 +20,7 @@ export type AuthMode =
   | "signup"
   | "forgot"
   | "reset"
+  | "confirm"
   | "totp"
   | "totp-setup";
 
@@ -153,6 +154,27 @@ export function AuthForm({
     setServerEmailError(null);
     setServerPasswordError(null);
     setServerPhoneError(null);
+    if (mode === "confirm") {
+      if (!resetToken) {
+        setError("This confirmation link is missing. Request a new one by signing in.");
+        return;
+      }
+      setBusy(true);
+      const res = await fetch("/api/auth/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: resetToken }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) {
+        setError(data.error ?? "Could not confirm that email");
+        return;
+      }
+      switchMode("signin");
+      setNotice("Email confirmed. Sign in with your password.");
+      return;
+    }
     if (mode === "totp" || mode === "totp-setup") {
       if (!/^\d{6}$/.test(totpCode.trim())) {
         setError("Enter the 6-digit code from your authenticator app.");
@@ -261,7 +283,9 @@ export function AuthForm({
       switchMode("signin");
       setEmail(email);
       setNotice(
-        "Account created. Confirm the link in your email before you sign in."
+        data.emailSent
+          ? "We emailed a confirmation link. Check inbox and spam, then confirm before you sign in."
+          : "Account created, but the email did not send. Sign in with your password — we will send the link again."
       );
       return;
     }
@@ -291,7 +315,9 @@ export function AuthForm({
         ? "Send reset link"
         : mode === "reset"
           ? "Save new password"
-          : mode === "totp"
+          : mode === "confirm"
+            ? "Confirm my email"
+            : mode === "totp"
             ? "Confirm code"
             : mode === "totp-setup"
               ? "Turn it on"
@@ -327,11 +353,13 @@ export function AuthForm({
         <p className="mb-5 text-sm text-muted-foreground">
           {mode === "reset"
             ? "Use at least 10 characters, with letters and a number."
+            : mode === "confirm"
+              ? "This proves the inbox is yours. Mail apps will not use up the link until you tap the button."
             : mode === "totp"
               ? "Codes refresh every 30 seconds."
               : mode === "totp-setup"
                 ? "Takes a minute. Keeps someone with your password from walking in."
-              : "We’ll email a reset link if that email or phone has an account."}
+                : "We’ll email a reset link if that email or phone has an account."}
         </p>
       )}
       {mode === "signup" ? (
@@ -511,7 +539,10 @@ export function AuthForm({
           ) : null}
         </div>
       ) : null}
-      {mode !== "forgot" && mode !== "totp" && mode !== "totp-setup" ? (
+      {mode !== "forgot" &&
+      mode !== "confirm" &&
+      mode !== "totp" &&
+      mode !== "totp-setup" ? (
         <div className={mode === "signin" ? "mb-2" : "mb-5"}>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">
             {mode === "reset" ? "New password" : "Password"}
@@ -651,7 +682,7 @@ export function AuthForm({
           Not now
         </button>
       ) : null}
-      {mode === "forgot" || mode === "reset" || mode === "totp" ? (
+      {mode === "forgot" || mode === "reset" || mode === "confirm" || mode === "totp" ? (
         <button
           type="button"
           onClick={() => switchMode("signin")}

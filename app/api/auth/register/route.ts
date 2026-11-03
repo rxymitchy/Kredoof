@@ -5,10 +5,14 @@ import {
   normalizePhone,
 } from "@/lib/account-rules";
 import { NextResponse } from "next/server";
-import { sendRegistrationEmail } from "@/lib/mail";
-import { DuplicateAccountError, registerUser } from "@/lib/persist";
+import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
+import {
+  DuplicateAccountError,
+  issueEmailConfirmToken,
+  registerUser,
+} from "@/lib/persist";
 import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
-import { apiOrigin, appOrigin } from "@/lib/session";
+import { apiOrigin } from "@/lib/session";
 
 function signupOk(input: {
   email: string;
@@ -27,6 +31,14 @@ function signupOk(input: {
     role: input.role,
     emailSent: input.emailSent,
   };
+}
+
+async function sendConfirm(request: Request, email: string, name: string, token: string) {
+  return sendRegistrationEmail({
+    to: email,
+    name,
+    loginUrl: confirmEmailUrl(request, token),
+  });
 }
 
 export async function POST(request: Request) {
@@ -75,12 +87,12 @@ export async function POST(request: Request) {
       }),
       signal: AbortSignal.timeout(2500),
     }).catch(() => null);
-    const loginUrl = `${appOrigin(request)}/api/auth/confirm?token=${data.verifyToken}`;
-    await sendRegistrationEmail({
-      to: data.email,
-      name: data.name,
-      loginUrl,
-    }).catch(() => false);
+    const emailSent = await sendConfirm(
+      request,
+      data.email,
+      data.name,
+      data.verifyToken
+    ).catch(() => false);
     return NextResponse.json(
       signupOk({
         email: data.email,
@@ -88,11 +100,23 @@ export async function POST(request: Request) {
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
-        emailSent: true,
+        emailSent,
       })
     );
   } catch (error) {
     if (error instanceof DuplicateAccountError) {
+      let emailSent = false;
+      if (error.field === "email") {
+        const issued = await issueEmailConfirmToken(email).catch(() => null);
+        if (issued) {
+          emailSent = await sendConfirm(
+            request,
+            issued.email,
+            issued.name,
+            issued.token
+          ).catch(() => false);
+        }
+      }
       return NextResponse.json(
         signupOk({
           email: normalizeEmail(email),
@@ -100,7 +124,7 @@ export async function POST(request: Request) {
           firstName,
           lastName,
           role,
-          emailSent: true,
+          emailSent,
         })
       );
     }

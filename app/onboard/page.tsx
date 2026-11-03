@@ -17,6 +17,8 @@ function OnboardInner() {
         ? "forgot"
         : step === "reset"
           ? "reset"
+          : step === "confirm"
+            ? "confirm"
           : step === "totp"
             ? "totp"
             : step === "totp-setup"

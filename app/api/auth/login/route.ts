@@ -1,6 +1,12 @@
 import { parseAccountRole } from "@/lib/account-role";
 import { NextResponse } from "next/server";
-import { LoginError, loginUser } from "@/lib/persist";
+import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
+import {
+  issueEmailConfirmToken,
+  LoginError,
+  loginUser,
+  UnverifiedEmailError,
+} from "@/lib/persist";
 import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import { beginTotpChallenge, establishSession } from "@/lib/session";
 
@@ -42,6 +48,26 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ...data, totpSuggested: true });
   } catch (error) {
+    if (error instanceof UnverifiedEmailError) {
+      const issued = await issueEmailConfirmToken(error.accountEmail).catch(
+        () => null
+      );
+      if (issued) {
+        await sendRegistrationEmail({
+          to: issued.email,
+          name: issued.name,
+          loginUrl: confirmEmailUrl(request, issued.token),
+        }).catch(() => false);
+      }
+      return NextResponse.json(
+        {
+          error:
+            "Confirm your email first. We sent a new link — check inbox and spam.",
+          field: "email",
+        },
+        { status: 401 }
+      );
+    }
     const message =
       error instanceof LoginError
         ? error.message
