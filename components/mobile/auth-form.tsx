@@ -67,7 +67,24 @@ export function AuthForm({
   const [totpCode, setTotpCode] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
   const [totpAccount, setTotpAccount] = useState("");
+  const [totpQr, setTotpQr] = useState("");
+  const [totpAddMode, setTotpAddMode] = useState<"scan" | "key">("scan");
   const [linkToken, setLinkToken] = useState(resetToken);
+
+  function applyTotpSetup(data: {
+    secret?: string;
+    account?: string;
+    email?: string;
+    qrDataUrl?: string;
+  }) {
+    if (!data.secret) return;
+    setTotpSecret(data.secret);
+    setTotpAccount(
+      data.account ?? (data.email ? `kredoof ${data.email}` : "")
+    );
+    setTotpQr(typeof data.qrDataUrl === "string" ? data.qrDataUrl : "");
+    setTotpAddMode(data.qrDataUrl ? "scan" : "key");
+  }
 
   useEffect(() => {
     setAuthMode(initialMode);
@@ -89,8 +106,7 @@ export function AuthForm({
       .then((data) => {
         if (cancelled) return;
         if (data.secret) {
-          setTotpSecret(data.secret);
-          setTotpAccount(data.account ?? (data.email ? `kredoof ${data.email}` : ""));
+          applyTotpSetup(data);
         } else if (data.enroll === false) {
           switchMode("totp");
         } else if (data.error) {
@@ -300,13 +316,12 @@ export function AuthForm({
         r.json().catch(() => ({}))
       );
       if (setup.secret) {
-        setTotpSecret(setup.secret);
-        setTotpAccount(
-          setup.account ??
-            (setup.email || email
-              ? `kredoof ${setup.email ?? email}`
-              : identifier)
-        );
+        applyTotpSetup({
+          secret: setup.secret,
+          account: setup.account,
+          email: setup.email ?? email,
+          qrDataUrl: setup.qrDataUrl,
+        });
       }
       if (data.role) setRole(parseAccountRole(data.role));
       return;
@@ -621,15 +636,63 @@ export function AuthForm({
       ) : null}
       {mode === "totp-setup" && totpSecret ? (
         <div className="mb-5 rounded-[14px] border border-hairline bg-white px-3.5 py-3">
-          <p className="text-xs font-medium text-muted-foreground">
-            In your authenticator app, add a key
-          </p>
-          <p className="mt-1 text-sm">
-            Account: {totpAccount || "kredoof your email"}
-          </p>
-          <p className="mt-2 break-all font-mono text-sm tracking-wide">
-            {totpSecret}
-          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTotpAddMode("scan")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold",
+                totpAddMode === "scan"
+                  ? "bg-mint-deep text-white"
+                  : "border border-hairline text-muted-foreground"
+              )}
+            >
+              Scan QR
+            </button>
+            <button
+              type="button"
+              onClick={() => setTotpAddMode("key")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold",
+                totpAddMode === "key"
+                  ? "bg-mint-deep text-white"
+                  : "border border-hairline text-muted-foreground"
+              )}
+            >
+              Type the key
+            </button>
+          </div>
+          {totpAddMode === "scan" && totpQr ? (
+            <div className="mt-3 flex flex-col items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={totpQr}
+                alt="Scan this QR with your authenticator app"
+                width={192}
+                height={192}
+                className="h-48 w-48"
+              />
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                Open Google Authenticator or Authy and scan this code.
+              </p>
+            </div>
+          ) : totpAddMode === "scan" ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              QR is not ready. Type the key instead.
+            </p>
+          ) : (
+            <>
+              <p className="mt-3 text-xs font-medium text-muted-foreground">
+                In your authenticator app, add a key
+              </p>
+              <p className="mt-1 text-sm">
+                Account: {totpAccount || "kredoof your email"}
+              </p>
+              <p className="mt-2 break-all font-mono text-sm tracking-wide">
+                {totpSecret}
+              </p>
+            </>
+          )}
         </div>
       ) : null}
       {mode === "totp" || mode === "totp-setup" ? (

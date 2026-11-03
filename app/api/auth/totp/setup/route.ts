@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/persist";
 import { getSession, stashTotpEnrollSecret } from "@/lib/session";
-import { generateTotpSecret, totpAccountName, totpOtpauthUrl } from "@/lib/totp";
+import {
+  generateTotpSecret,
+  totpAccountName,
+  totpOtpauthUrl,
+  totpQrDataUrl,
+} from "@/lib/totp";
 
 export async function GET() {
   const session = await getSession();
@@ -26,12 +31,15 @@ export async function GET() {
   if (!session.totpPendingSecret) {
     await stashTotpEnrollSecret(secret);
   }
+  const otpauthUrl = totpOtpauthUrl(user.email, secret);
+  const qrDataUrl = await totpQrDataUrl(user.email, secret).catch(() => "");
   return NextResponse.json({
     enroll: true,
     optional: Boolean(session.signedIn),
     email: user.email,
     account: totpAccountName(user.email),
     secret,
-    otpauthUrl: totpOtpauthUrl(user.email, secret),
+    otpauthUrl,
+    qrDataUrl,
   });
 }

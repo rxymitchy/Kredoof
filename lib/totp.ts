@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import QRCode from "qrcode";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const STEP_SECONDS = 30;
@@ -16,6 +17,18 @@ export function totpOtpauthUrl(account: string, secret: string): string {
   const label = encodeURIComponent(`kredoof:${name}`);
   const issuer = encodeURIComponent("kredoof");
   return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&digits=6&period=${STEP_SECONDS}`;
+}
+
+export async function totpQrDataUrl(
+  account: string,
+  secret: string
+): Promise<string> {
+  return QRCode.toDataURL(totpOtpauthUrl(account, secret), {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width: 240,
+    color: { dark: "#12261a", light: "#ffffff" },
+  });
 }
 
 export function verifyTotp(secret: string, code: string): boolean {
