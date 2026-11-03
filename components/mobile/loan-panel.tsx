@@ -209,7 +209,7 @@ export function LoanPanel({
           type="button"
           onClick={repay}
           disabled={isPending || !address || !hasOpenLoan}
-          className="font-heading rounded-2xl border border-hairline px-4 py-3 text-sm font-bold"
+          className="font-heading rounded-2xl bg-mint-deep px-4 py-3 text-sm font-bold text-white disabled:opacity-55"
         >
           Pay it back
         </button>

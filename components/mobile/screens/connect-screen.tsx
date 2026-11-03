@@ -94,7 +94,7 @@ export function ConnectScreen({
                 <button
                   type="button"
                   onClick={() => switchChain({ chainId: avalanche.id })}
-                  className="font-heading mt-3 w-full rounded-xl border border-hairline py-3 text-sm font-bold"
+                  className="font-heading mt-3 w-full rounded-xl bg-mint-deep py-3 text-sm font-bold text-white"
                 >
                   {isSwitching ? "Switching…" : "Switch to Avalanche"}
                 </button>
@@ -120,12 +120,12 @@ export function ConnectScreen({
                     type="button"
                     disabled={isPending}
                     onClick={() => connect({ connector: item })}
-                    className="font-heading flex items-center justify-center gap-1.5 rounded-xl border border-hairline bg-white px-3 py-4 text-sm font-semibold disabled:opacity-60"
+                    className="font-heading flex items-center justify-center gap-1.5 rounded-xl bg-mint-deep px-3 py-4 text-sm font-semibold text-white disabled:opacity-60"
                   >
                     {pending ? (
-                      <Loader2 size={13} className="animate-spin text-mint-deep" />
+                      <Loader2 size={13} className="animate-spin" />
                     ) : (
-                      <Wallet size={13} className="text-mint-deep" />
+                      <Wallet size={13} />
                     )}
                     {pending ? "Connecting…" : item.name}
                   </button>

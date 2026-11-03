@@ -1,6 +1,6 @@
 import { cookieStorage, createConfig, createStorage, http } from "wagmi";
 import { avalanche } from "wagmi/chains";
-import { coinbaseWallet, metaMask, walletConnect } from "wagmi/connectors";
+import { coinbaseWallet, injected, metaMask, walletConnect } from "wagmi/connectors";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ?? "";
@@ -12,6 +12,7 @@ const hasWalletConnectProjectId =
 export const wagmiConfig = createConfig({
   chains: [avalanche],
   connectors: [
+    injected({ shimDisconnect: true }),
     metaMask({
       dappMetadata: {
         name: "Kredoof",

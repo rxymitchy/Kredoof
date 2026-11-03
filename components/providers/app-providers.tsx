@@ -21,7 +21,7 @@ export function AppProviders({
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={lightTheme({
-            accentColor: "#3FA65C",
+            accentColor: "#147a43",
             accentColorForeground: "#ffffff",
             borderRadius: "large",
             fontStack: "system",

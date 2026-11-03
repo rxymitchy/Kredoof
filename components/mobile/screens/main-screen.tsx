@@ -288,7 +288,7 @@ export function MainScreen({
                 className={cn(
                   "font-heading flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold",
                   tab === item.id
-                    ? "bg-foreground text-white"
+                    ? "bg-mint-deep text-white"
                     : "text-muted-foreground hover:bg-white"
                 )}
               >
@@ -555,7 +555,7 @@ export function MainScreen({
                   <button
                     type="button"
                     onClick={() => onTab("report")}
-                    className="flex w-full items-center justify-between rounded-full bg-primary px-4 py-3.5 text-sm font-medium text-white"
+                    className="flex w-full items-center justify-between rounded-full bg-mint-deep px-4 py-3.5 text-sm font-medium text-white"
                   >
                     View your documents
                     <ChevronRight size={16} />
@@ -705,14 +705,14 @@ export function MainScreen({
                   <button
                     type="button"
                     onClick={onDownload}
-                    className="font-heading flex flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-[#0F2340] py-3 text-[12.5px] font-bold text-white"
+                    className="font-heading flex flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-mint-deep py-3 text-[12.5px] font-bold text-white"
                   >
                     <Download size={14} /> Download
                   </button>
                   <button
                     type="button"
                     onClick={onPrint}
-                    className="font-heading flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-[#0F2340] bg-white py-3 text-[12.5px] font-bold text-[#0F2340]"
+                    className="font-heading flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-mint-deep bg-white py-3 text-[12.5px] font-bold text-mint-deep"
                   >
                     <Printer size={14} /> Print
                   </button>
@@ -745,7 +745,7 @@ export function MainScreen({
             <span
               className={cn(
                 "flex h-8 w-12 items-center justify-center rounded-xl",
-                tab === item.id ? "bg-primary text-white" : "bg-transparent"
+                tab === item.id ? "bg-mint-deep text-white" : "bg-transparent"
               )}
             >
               <item.icon size={17} />

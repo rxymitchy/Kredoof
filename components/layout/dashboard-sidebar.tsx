@@ -32,7 +32,7 @@ export function DashboardSidebar() {
               className={cn(
                 "block rounded-lg px-3 py-2 text-sm transition-colors",
                 active
-                  ? "bg-sidebar-accent text-foreground"
+                  ? "bg-mint-deep text-white"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
               )}
             >

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseAccountRole } from "@/lib/account-role";
+import { requireLender } from "@/lib/lender-auth";
 import {
   addLenderKes,
   getClaimedLeadForLender,
@@ -11,7 +11,6 @@ import {
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
 } from "@/lib/loan-terms";
-import { readActiveSession } from "@/lib/session";
 import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import { disburseFromTreasury, treasuryErrorMessage } from "@/lib/treasury-disburse";
 
@@ -23,18 +22,14 @@ export async function POST(request: Request) {
       { status: 429, headers: { "Retry-After": String(retryAfterSeconds(wait)) } }
     );
   }
-  const session = await readActiveSession();
-  if (!session.signedIn || !session.email) {
-    return NextResponse.json({ error: "Sign in first" }, { status: 401 });
-  }
-  if (parseAccountRole(session.role) !== "lender") {
-    return NextResponse.json({ error: "Lender account required" }, { status: 403 });
-  }
+  const gate = await requireLender();
+  if (gate.error) return gate.error;
+  const email = gate.email!;
   const body = (await request.json()) as { id?: string; termDays?: number };
   if (!body.id) {
     return NextResponse.json({ error: "File required" }, { status: 400 });
   }
-  const lead = await getClaimedLeadForLender(body.id, session.email);
+  const lead = await getClaimedLeadForLender(body.id, email);
   if (!lead) {
     return NextResponse.json(
       { error: "Take this file first. Only the exclusive lender can fund it." },
@@ -58,10 +53,10 @@ export async function POST(request: Request) {
     body.termDays === LONG_TERM_DAYS ? LONG_TERM_DAYS : SHORT_TERM_DAYS;
   const kesNeeded = Math.round(lead.limit_kes ?? 0);
   try {
-    await spendLenderKes(session.email, kesNeeded);
+    await spendLenderKes(email, kesNeeded);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Add money first" },
+      { error: error instanceof Error ? error.message : "Deposit first" },
       { status: 400 }
     );
   }
@@ -75,7 +70,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ hash, loan });
   } catch (err) {
-    await addLenderKes(session.email, kesNeeded).catch(() => null);
+    await addLenderKes(email, kesNeeded).catch(() => null);
     const { error, status } = treasuryErrorMessage(err);
     return NextResponse.json({ error }, { status });
   }

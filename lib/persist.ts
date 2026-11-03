@@ -39,7 +39,7 @@ export type StoredUser = {
   deletedAt?: number | null;
   role?: AccountRole;
   googleId?: string | null;
-  /** KSh the lender has put in to take files and fund loans. */
+  /** KSh credited only after a real M-Pesa or Avalanche USDT payment. */
   kesFloat?: number;
   totpSecret?: string | null;
   totpEnabled?: boolean;
@@ -82,6 +82,7 @@ export type StoredLead = {
 const STORE = "kredoof-v2";
 const LOANS_PATH = `${STORE}/loans.json`;
 const LEADS_PATH = `${STORE}/leads.json`;
+const DEPOSITS_PATH = `${STORE}/deposits.json`;
 const VERIFY_PREFIX = `${STORE}/verify/`;
 const RESET_PREFIX = `${STORE}/reset/`;
 
@@ -220,6 +221,21 @@ function toPublicAccount(user: StoredUser): PublicAccount {
     wallet: user.wallet,
     role: parseAccountRole(user.role),
     totpEnabled: Boolean(user.totpEnabled),
+  };
+}
+
+const DEV_LENDER_EMAIL = "lender@localhost";
+
+function devLenderPublic(): PublicAccount {
+  return {
+    email: DEV_LENDER_EMAIL,
+    phone: "254700000001",
+    name: "Local Lender",
+    firstName: "Local",
+    lastName: "Lender",
+    wallet: null,
+    role: "lender",
+    totpEnabled: false,
   };
 }
 
@@ -1282,17 +1298,26 @@ export async function claimLeadExclusive(
 
 export async function getLenderKesFloat(emailRaw: string): Promise<number> {
   const user = await getUserByEmail(emailRaw);
-  if (!user) throw new Error("Account not found");
+  if (!user) {
+    if (
+      process.env.NODE_ENV === "development" &&
+      normalizeEmail(emailRaw) === DEV_LENDER_EMAIL
+    ) {
+      return 0;
+    }
+    throw new Error("Account not found");
+  }
   return Number(user.kesFloat) || 0;
 }
 
+/** Credit KSh that already arrived (payment webhook or a failed spend refund). */
 export async function addLenderKes(
   emailRaw: string,
   kesRaw: number
 ): Promise<number> {
   const kes = Math.round(Number(kesRaw));
-  if (!Number.isFinite(kes) || kes < 100) {
-    throw new Error("Put in at least KSh 100");
+  if (!Number.isFinite(kes) || kes < 1) {
+    throw new Error("Nothing to add");
   }
   if (kes > 20_000_000) {
     throw new Error("That amount is too large for one add");
@@ -1338,7 +1363,7 @@ export async function spendLenderKes(
     if (!rows[0]) {
       const have = await getLenderKesFloat(emailRaw).catch(() => 0);
       throw new Error(
-        `Add money first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
+        `Deposit first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
       );
     }
     return Number(rows[0].kes_float) || 0;
@@ -1348,12 +1373,311 @@ export async function spendLenderKes(
   const have = Number(user.kesFloat) || 0;
   if (have < kes) {
     throw new Error(
-      `Add money first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
+      `Deposit first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
     );
   }
   user.kesFloat = have - kes;
   await saveUser(user, "update");
   return user.kesFloat;
+}
+
+export type DepositMethod = "mpesa" | "avalanche" | "paypal" | "card";
+export type DepositStatus = "pending" | "confirmed" | "failed";
+
+export type StoredDeposit = {
+  id: string;
+  email: string;
+  kes: number;
+  method: DepositMethod;
+  status: DepositStatus;
+  providerRef?: string | null;
+  createdAt: number;
+  confirmedAt?: number | null;
+};
+
+function depositFromRow(row: Record<string, unknown>): StoredDeposit {
+  const method =
+    row.method === "avalanche" ||
+    row.method === "paypal" ||
+    row.method === "card"
+      ? row.method
+      : "mpesa";
+  const status =
+    row.status === "confirmed" || row.status === "failed" ? row.status : "pending";
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    kes: Number(row.kes) || 0,
+    method,
+    status,
+    providerRef: (row.provider_ref as string | null) ?? null,
+    createdAt: Number(row.created_at),
+    confirmedAt: row.confirmed_at == null ? null : Number(row.confirmed_at),
+  };
+}
+
+function publicDeposit(row: StoredDeposit) {
+  return {
+    id: row.id,
+    kes: row.kes,
+    method: row.method,
+    status: row.status,
+    createdAt: row.createdAt,
+    confirmedAt: row.confirmedAt ?? null,
+  };
+}
+
+export async function createLenderDeposit(input: {
+  email: string;
+  kes: number;
+  method: DepositMethod;
+}): Promise<StoredDeposit> {
+  const kes = Math.round(Number(input.kes));
+  if (!Number.isFinite(kes) || kes < 100) {
+    throw new Error("Deposit at least KSh 100");
+  }
+  if (kes > 20_000_000) {
+    throw new Error("That amount is too large for one deposit");
+  }
+  const deposit: StoredDeposit = {
+    id: newId(),
+    email: normalizeEmail(input.email),
+    kes,
+    method: input.method,
+    status: "pending",
+    providerRef: null,
+    createdAt: Date.now(),
+    confirmedAt: null,
+  };
+  if (await usingDb()) {
+    const sql = getSql();
+    await sql`
+      INSERT INTO lender_deposits (id, email, kes, method, status, provider_ref, created_at, confirmed_at)
+      VALUES (
+        ${deposit.id}, ${deposit.email}, ${deposit.kes}, ${deposit.method},
+        ${deposit.status}, ${deposit.providerRef}, ${deposit.createdAt}, ${deposit.confirmedAt}
+      )
+    `;
+    return deposit;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  rows.unshift(deposit);
+  await writeJson(DEPOSITS_PATH, rows);
+  return deposit;
+}
+
+export async function setDepositProviderRef(
+  id: string,
+  providerRef: string
+): Promise<void> {
+  if (await usingDb()) {
+    const sql = getSql();
+    await sql`
+      UPDATE lender_deposits
+      SET provider_ref = ${providerRef}
+      WHERE id = ${id}
+    `;
+    return;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  const row = rows.find((item) => item.id === id);
+  if (row) {
+    row.providerRef = providerRef;
+    await writeJson(DEPOSITS_PATH, rows);
+  }
+}
+
+export async function getDepositById(id: string): Promise<StoredDeposit | null> {
+  if (!id) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM lender_deposits WHERE id = ${id} LIMIT 1
+    `) as Record<string, unknown>[];
+    return rows[0] ? depositFromRow(rows[0]) : null;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  return rows.find((item) => item.id === id) ?? null;
+}
+
+export async function getDepositByProviderRef(
+  providerRef: string
+): Promise<StoredDeposit | null> {
+  if (!providerRef) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM lender_deposits WHERE provider_ref = ${providerRef} LIMIT 1
+    `) as Record<string, unknown>[];
+    return rows[0] ? depositFromRow(rows[0]) : null;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  return rows.find((item) => item.providerRef === providerRef) ?? null;
+}
+
+/** Credit once when the payment provider confirms the money arrived. */
+export async function confirmLenderDeposit(input: {
+  id?: string;
+  providerRef?: string;
+}): Promise<StoredDeposit | null> {
+  let deposit = input.id
+    ? await getDepositById(input.id)
+    : input.providerRef
+      ? await getDepositByProviderRef(input.providerRef)
+      : null;
+  if (!deposit) return null;
+  if (deposit.status === "confirmed") return deposit;
+  if (await usingDb()) {
+    const sql = getSql();
+    const now = Date.now();
+    const rows = (await sql`
+      UPDATE lender_deposits
+      SET status = 'confirmed', confirmed_at = ${now},
+          provider_ref = COALESCE(${input.providerRef ?? null}, provider_ref)
+      WHERE id = ${deposit.id} AND status = 'pending'
+      RETURNING *
+    `) as Record<string, unknown>[];
+    if (!rows[0]) return getDepositById(deposit.id);
+    await addLenderKes(deposit.email, deposit.kes);
+    return depositFromRow(rows[0]);
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  const row = rows.find((item) => item.id === deposit.id);
+  if (!row || row.status !== "pending") return row ?? deposit;
+  row.status = "confirmed";
+  row.confirmedAt = Date.now();
+  if (input.providerRef) row.providerRef = input.providerRef;
+  await writeJson(DEPOSITS_PATH, rows);
+  await addLenderKes(deposit.email, deposit.kes);
+  return row;
+}
+
+export async function failLenderDeposit(id: string): Promise<void> {
+  if (await usingDb()) {
+    const sql = getSql();
+    await sql`
+      UPDATE lender_deposits SET status = 'failed'
+      WHERE id = ${id} AND status = 'pending'
+    `;
+    return;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  const row = rows.find((item) => item.id === id);
+  if (row && row.status === "pending") {
+    row.status = "failed";
+    await writeJson(DEPOSITS_PATH, rows);
+  }
+}
+
+export async function listLenderDeposits(emailRaw: string) {
+  const email = normalizeEmail(emailRaw);
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM lender_deposits
+      WHERE email = ${email}
+      ORDER BY created_at DESC
+      LIMIT 20
+    `) as Record<string, unknown>[];
+    return rows.map(depositFromRow).map(publicDeposit);
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  return rows
+    .filter((item) => item.email === email)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 20)
+    .map(publicDeposit);
+}
+
+export async function getPublicAccount(
+  emailRaw: string
+): Promise<PublicAccount | null> {
+  const user = await getUserByEmail(emailRaw);
+  if (user) return toPublicAccount(user);
+  if (
+    process.env.NODE_ENV === "development" &&
+    normalizeEmail(emailRaw) === DEV_LENDER_EMAIL
+  ) {
+    return devLenderPublic();
+  }
+  return null;
+}
+
+export async function updatePublicProfile(
+  emailRaw: string,
+  input: { firstName: string; lastName: string; phone: string }
+): Promise<PublicAccount> {
+  const user = await getUserByEmail(emailRaw);
+  if (!user) throw new Error("Unknown account");
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const phone = normalizePhone(input.phone);
+  if (!firstName || !lastName) throw new Error("Enter your first and last name");
+  if (!phone) throw new Error("Enter a mobile number");
+  const taken = await getUserByPhone(phone);
+  if (taken && taken.id !== user.id) throw new DuplicateAccountError("phone");
+  const previousPhone = user.phone;
+  user.firstName = firstName;
+  user.lastName = lastName;
+  user.name = displayName(firstName, lastName);
+  user.phone = phone;
+  await saveUser(user, "update");
+  if (!(await usingDb()) && previousPhone !== phone) {
+    if (previousPhone) {
+      await writeObject(phoneIndexPath(previousPhone), { id: "" }, "update").catch(
+        () => null
+      );
+    }
+    await writeObject(phoneIndexPath(phone), { id: user.id }, "update").catch(
+      () => null
+    );
+  }
+  return toPublicAccount(user);
+}
+
+/** Local `next dev` only. Lets /lend work without a real login. */
+export async function ensureDevLender(): Promise<PublicAccount> {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Dev lender is local only");
+  }
+  const existing = await getUserByEmail(DEV_LENDER_EMAIL);
+  if (existing) return toPublicAccount(existing);
+  // Do not insert a fake row into Neon (local .env often points at production).
+  if (await usingDb()) return devLenderPublic();
+  const phone = "254700000001";
+  const user: StoredUser = {
+    id: newId(),
+    email: DEV_LENDER_EMAIL,
+    phone,
+    passwordHash: hashPassword(randomBytes(24).toString("hex")),
+    firstName: "Local",
+    lastName: "Lender",
+    name: "Local Lender",
+    wallet: null,
+    emailVerified: true,
+    createdAt: Date.now(),
+    role: "lender",
+    kesFloat: 0,
+  };
+  await writeObject(emailIndexPath(user.email), { id: user.id }, "update").catch(() => null);
+  await writeObject(phoneIndexPath(phone), { id: user.id }, "update").catch(() => null);
+  await saveUser(user, "update");
+  return toPublicAccount(user);
+}
+
+export async function changeAccountPassword(
+  emailRaw: string,
+  currentPassword: string,
+  nextPassword: string
+): Promise<void> {
+  const hint = passwordHint(nextPassword);
+  if (hint) throw new Error(hint);
+  const user = await getUserByEmail(emailRaw);
+  if (!user || !passwordMatches(currentPassword, user.passwordHash)) {
+    throw new Error("Current password is wrong");
+  }
+  user.passwordHash = hashPassword(nextPassword);
+  await saveUser(user, "update");
 }
 
 export async function getClaimedLeadForLender(

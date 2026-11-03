@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
-import { parseAccountRole } from "@/lib/account-role";
+import { requireLender } from "@/lib/lender-auth";
 import { listLenderMarketplace } from "@/lib/persist";
-import { readActiveSession } from "@/lib/session";
 
 export async function GET() {
-  const session = await readActiveSession();
-  if (!session.signedIn || !session.email) {
-    return NextResponse.json({ error: "Sign in first" }, { status: 401 });
-  }
-  if (parseAccountRole(session.role) !== "lender") {
-    return NextResponse.json({ error: "Lender account required" }, { status: 403 });
-  }
-  const data = await listLenderMarketplace(session.email);
+  const gate = await requireLender();
+  if (gate.error) return gate.error;
+  const data = await listLenderMarketplace(gate.email!);
   return NextResponse.json(data);
 }
