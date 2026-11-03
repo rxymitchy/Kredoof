@@ -69,7 +69,6 @@ export function AuthForm({
   const [totpAccount, setTotpAccount] = useState("");
   const [totpQr, setTotpQr] = useState("");
   const [totpAddMode, setTotpAddMode] = useState<"scan" | "key">("scan");
-  const [totpRelabel, setTotpRelabel] = useState(false);
   const [linkToken, setLinkToken] = useState(resetToken);
 
   function applyTotpSetup(data: {
@@ -85,7 +84,6 @@ export function AuthForm({
     );
     setTotpQr(typeof data.qrDataUrl === "string" ? data.qrDataUrl : "");
     setTotpAddMode(data.qrDataUrl ? "scan" : "key");
-    setTotpRelabel(false);
   }
 
   useEffect(() => {
@@ -107,12 +105,13 @@ export function AuthForm({
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        if (data.relabel) {
-          applyTotpSetup(data);
-          setTotpRelabel(true);
+        if (data.alreadyOn) {
+          setError(
+            data.error ??
+              "Turn off the current authenticator in Settings first."
+          );
         } else if (data.secret) {
           applyTotpSetup(data);
-          setTotpRelabel(false);
         } else if (data.enroll === false) {
           switchMode("totp");
         } else if (data.error) {
@@ -200,10 +199,6 @@ export function AuthForm({
       }
       switchMode("signin");
       setNotice("Email confirmed. Sign in with your password.");
-      return;
-    }
-    if (mode === "totp-setup" && totpRelabel) {
-      onContinue(role);
       return;
     }
     if (mode === "totp" || mode === "totp-setup") {
@@ -351,9 +346,7 @@ export function AuthForm({
             : mode === "totp"
             ? "Confirm code"
             : mode === "totp-setup"
-              ? totpRelabel
-                ? "Done"
-                : "Turn it on"
+              ? "Turn it on"
               : "Create my account";
 
   return (
@@ -391,9 +384,7 @@ export function AuthForm({
             : mode === "totp"
               ? "Codes refresh every 30 seconds."
               : mode === "totp-setup"
-                ? totpRelabel
-                  ? "Scan this so your app shows Kredoof : your email. Then delete the old entry. The codes stay the same."
-                  : "Takes a minute. Keeps someone with your password from walking in."
+                ? "Takes a minute. Keeps someone with your password from walking in. The account should read Kredoof : your email."
                 : "We’ll email a reset link if that email or phone has an account."}
         </p>
       )}
@@ -709,7 +700,7 @@ export function AuthForm({
           )}
         </div>
       ) : null}
-      {mode === "totp" || (mode === "totp-setup" && !totpRelabel) ? (
+      {mode === "totp" || (mode === "totp-setup" && totpSecret) ? (
         <div className="mb-5">
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">
             6-digit code
@@ -756,7 +747,7 @@ export function AuthForm({
           </p>
         </>
       ) : null}
-      {mode === "totp-setup" && !totpRelabel ? (
+      {mode === "totp-setup" ? (
         <button
           type="button"
           onClick={() => onContinue(role)}

@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     const next =
       parseAccountRole(data.role) === "lender"
         ? `${origin}/lend`
-        : `${origin}/onboard?step=connect`;
+        : `${origin}/dashboard`;
     return NextResponse.redirect(next);
   } catch (error) {
     const message =

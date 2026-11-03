@@ -46,7 +46,7 @@ export function SiteDock({
     : signedIn
       ? role === "lender"
         ? "/lend"
-        : "/onboard?step=connect"
+        : "/dashboard"
       : "/onboard?step=signup";
   const primaryLabel = signedIn
     ? role === "lender"
@@ -69,11 +69,8 @@ export function SiteDock({
           fadeOnScroll && scrolled && "pointer-events-none -translate-y-3 opacity-0"
         )}
       >
-        <Link href="/" className="flex min-h-10 items-center gap-2">
-          <BrandMark size={20} />
-          <span className="text-[15px] font-medium tracking-[-0.04em]">
-            Kredoof
-          </span>
+        <Link href="/" className="flex min-h-10 items-center">
+          <BrandMark size={32} />
         </Link>
         <div className="flex items-center gap-0.5 sm:gap-2">
           <Link

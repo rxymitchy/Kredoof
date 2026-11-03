@@ -67,10 +67,7 @@ export function AuthScreen({
           href="/"
           className="absolute left-4 top-[max(0.85rem,env(safe-area-inset-top))] z-10 flex min-h-10 items-center gap-2 rounded-full bg-black/45 px-3 py-2 text-white backdrop-blur-md"
         >
-          <BrandMark size={18} />
-          <span className="text-[15px] font-medium tracking-[-0.04em]">
-            Kredoof
-          </span>
+          <BrandMark size={36} />
         </Link>
         <div className="absolute inset-x-0 bottom-0 z-10 p-5 sm:p-10">
           <p className="display text-[1.7rem] text-white sm:text-4xl lg:text-5xl">

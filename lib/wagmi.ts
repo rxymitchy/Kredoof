@@ -38,7 +38,7 @@ export const wagmiConfig = createConfig({
               name: "Kredoof",
               description: "See if your payments can support a loan.",
               url: "https://kredoof.vercel.app",
-              icons: [],
+              icons: ["https://kredoof.vercel.app/brand/kredoof-logo.png"],
             },
           }),
         ]

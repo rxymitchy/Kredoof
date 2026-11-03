@@ -257,9 +257,8 @@ export function MainScreen({
       <header className="sticky top-0 z-20 border-b border-hairline bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-2 text-[15px] font-medium tracking-[-0.04em]">
-              <BrandMark size={20} />
-              Kredoof
+            <span className="flex items-center">
+              <BrandMark size={36} />
             </span>
             <span className="hidden h-4 w-px bg-hairline sm:block" />
             <div className="hidden items-center gap-2 sm:flex">
@@ -1039,18 +1038,51 @@ export function MainScreen({
               <h2 className="text-sm font-semibold">Authenticator</h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 {profile?.totpEnabled
-                  ? "An authenticator app is on. Scan again if you want the name to show Kredoof : your email."
+                  ? "An authenticator app is on. Old names in the app cannot be renamed. Turn it off, delete the old entry on your phone, then add it again as Kredoof : your email."
                   : "Optional extra lock when you sign in."}
               </p>
-              <button
-                type="button"
-                onClick={() => router.push("/onboard?step=totp-setup")}
-                className="mt-3 text-sm font-semibold text-mint-deep"
-              >
-                {profile?.totpEnabled
-                  ? "Update the name in your app"
-                  : "Set up authenticator"}
-              </button>
+              {profile?.totpEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Turn off the authenticator? You can set it up again next."
+                      )
+                    ) {
+                      return;
+                    }
+                    void (async () => {
+                      const res = await fetch("/api/auth/totp/disable", {
+                        method: "POST",
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        setNotice(null);
+                        setAccountNote(
+                          data.error ?? "Could not turn off the authenticator."
+                        );
+                        return;
+                      }
+                      setProfile((current) =>
+                        current ? { ...current, totpEnabled: false } : current
+                      );
+                      router.push("/onboard?step=totp-setup");
+                    })();
+                  }}
+                  className="mt-3 text-sm font-semibold text-[#C24545]"
+                >
+                  Turn off and set up again
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push("/onboard?step=totp-setup")}
+                  className="mt-3 text-sm font-semibold text-mint-deep"
+                >
+                  Set up authenticator
+                </button>
+              )}
             </div>
             <button
               type="button"

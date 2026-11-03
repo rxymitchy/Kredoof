@@ -26,6 +26,10 @@ export const metadata: Metadata = {
   title: "Kredoof — Got the proof? Get the credit.",
   description:
     "Show the money that already moved in your wallet. Get a simple credit result, or lend to a business that qualified.",
+  icons: {
+    icon: "/brand/kredoof-logo.png",
+    apple: "/brand/kredoof-logo.png",
+  },
 };
 
 export const viewport = {

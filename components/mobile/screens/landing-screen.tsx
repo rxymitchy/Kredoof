@@ -53,7 +53,7 @@ export function LandingScreen() {
     : signedIn
       ? role === "lender"
         ? "/lend"
-        : "/onboard?step=connect"
+        : "/dashboard"
       : "/onboard?step=signup";
   const lendHref =
     signedIn && role === "lender" ? "/lend" : "/onboard?step=signup&as=lender";

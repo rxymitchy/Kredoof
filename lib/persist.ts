@@ -838,6 +838,15 @@ export async function enableTotp(email: string, secret: string): Promise<PublicA
   return toPublicAccount(user);
 }
 
+export async function disableTotp(email: string): Promise<PublicAccount> {
+  const user = await getUserByEmail(email);
+  if (!user) throw new LoginError("credentials", CREDENTIALS_MESSAGE);
+  user.totpSecret = null;
+  user.totpEnabled = false;
+  await saveUser(user, "update");
+  return toPublicAccount(user);
+}
+
 export async function getUserByGoogleId(googleId: string): Promise<StoredUser | null> {
   const id = googleId.trim();
   if (!id) return null;

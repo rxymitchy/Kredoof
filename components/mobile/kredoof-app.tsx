@@ -194,7 +194,9 @@ export function KredoofApp({
           initialAuthMode !== "totp-setup" &&
           initialAuthMode !== "confirm"
         ) {
-          setStage("connect");
+          router.replace("/dashboard");
+          setSessionReady(true);
+          return;
         }
         setSessionReady(true);
       })
@@ -360,7 +362,7 @@ export function KredoofApp({
               router.push("/lend");
               return;
             }
-            setStage("connect");
+            router.push("/dashboard");
           }}
         onBack={() => router.push("/")}
       />
