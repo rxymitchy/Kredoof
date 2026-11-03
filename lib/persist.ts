@@ -15,6 +15,7 @@ import {
 import type { MarketplaceFile } from "@/lib/marketplace-file";
 import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { dbEnabled, ensureSchema, getSql } from "@/lib/db";
+import { emailConfirmRequired } from "@/lib/email-confirm";
 import { isOpenLoanStatus, LEAD_FEE_KES } from "@/lib/loan-terms";
 
 // Accounts, loans, and leads. Postgres when DATABASE_URL is set; otherwise
@@ -727,7 +728,7 @@ export async function registerUser(input: {
     lastName,
     name,
     wallet: null,
-    emailVerified: false,
+    emailVerified: !emailConfirmRequired(),
     verifyTokenHash: verify.hash,
     verifyTokenExpires: verify.expires,
     resetTokenHash: null,
@@ -799,7 +800,13 @@ export async function loginUser(
     throw new LoginError("credentials", CREDENTIALS_MESSAGE);
   }
   if (!user.emailVerified) {
-    throw new UnverifiedEmailError(user.email, user.name);
+    if (emailConfirmRequired()) {
+      throw new UnverifiedEmailError(user.email, user.name);
+    }
+    user.emailVerified = true;
+    user.verifyTokenHash = null;
+    user.verifyTokenExpires = null;
+    await saveUser(user, "update").catch(() => null);
   }
   if (!user.passwordHash.startsWith("v2:")) {
     user.passwordHash = hashPassword(password);

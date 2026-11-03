@@ -1,4 +1,5 @@
 import { parseAccountRole } from "@/lib/account-role";
+import { emailConfirmRequired } from "@/lib/email-confirm";
 import { NextResponse } from "next/server";
 import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
 import {
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ...data, totpSuggested: true });
   } catch (error) {
-    if (error instanceof UnverifiedEmailError) {
+    if (error instanceof UnverifiedEmailError && emailConfirmRequired()) {
       const issued = await issueEmailConfirmToken(error.accountEmail).catch(
         () => null
       );

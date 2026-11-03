@@ -4,6 +4,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "@/lib/account-rules";
+import { emailConfirmRequired } from "@/lib/email-confirm";
 import { after, NextResponse } from "next/server";
 import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
 import {
@@ -21,6 +22,7 @@ function signupOk(input: {
   lastName: string;
   role: ReturnType<typeof parseAccountRole>;
   emailSent: boolean;
+  confirmToken?: string;
 }) {
   return {
     email: input.email,
@@ -30,6 +32,7 @@ function signupOk(input: {
     lastName: input.lastName,
     role: input.role,
     emailSent: input.emailSent,
+    confirmToken: input.confirmToken,
   };
 }
 
@@ -87,6 +90,18 @@ export async function POST(request: Request) {
       }),
       signal: AbortSignal.timeout(2500),
     }).catch(() => null);
+    if (!emailConfirmRequired()) {
+      return NextResponse.json(
+        signupOk({
+          email: data.email,
+          phone: data.phone,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          role: data.role,
+          emailSent: false,
+        })
+      );
+    }
     const emailSent = await sendConfirm(
       request,
       data.email,
@@ -108,13 +123,14 @@ export async function POST(request: Request) {
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
-        emailSent: true,
+        emailSent,
+        confirmToken: data.verifyToken,
       })
     );
   } catch (error) {
     if (error instanceof DuplicateAccountError) {
       let emailSent = false;
-      if (error.field === "email") {
+      if (error.field === "email" && emailConfirmRequired()) {
         const issued = await issueEmailConfirmToken(email).catch(() => null);
         if (issued) {
           emailSent = await sendConfirm(
@@ -142,7 +158,7 @@ export async function POST(request: Request) {
           firstName,
           lastName,
           role,
-          emailSent: true,
+          emailSent,
         })
       );
     }

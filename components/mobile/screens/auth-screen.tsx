@@ -41,7 +41,7 @@ export function AuthScreen({
               : "Create your account";
   const blurb =
     mode === "signin"
-      ? "Same email or phone as last time. Confirm your email first if you have not yet."
+      ? "Same email or phone as last time."
       : mode === "forgot"
         ? "We’ll email a reset link if that email or phone has an account."
         : mode === "reset"

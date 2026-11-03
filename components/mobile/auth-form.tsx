@@ -67,10 +67,15 @@ export function AuthForm({
   const [totpCode, setTotpCode] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
   const [totpAccount, setTotpAccount] = useState("");
+  const [linkToken, setLinkToken] = useState(resetToken);
 
   useEffect(() => {
     setAuthMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    setLinkToken(resetToken);
+  }, [resetToken]);
 
   useEffect(() => {
     setRole(parseAccountRole(initialRole));
@@ -155,7 +160,7 @@ export function AuthForm({
     setServerPasswordError(null);
     setServerPhoneError(null);
     if (mode === "confirm") {
-      if (!resetToken) {
+      if (!linkToken) {
         setError("This confirmation link is missing. Request a new one by signing in.");
         return;
       }
@@ -163,7 +168,7 @@ export function AuthForm({
       const res = await fetch("/api/auth/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: resetToken }),
+        body: JSON.stringify({ token: linkToken }),
       });
       const data = await res.json().catch(() => ({}));
       setBusy(false);
@@ -280,11 +285,9 @@ export function AuthForm({
       return;
     }
     if (mode === "signup") {
-      switchMode("signin");
       setEmail(email);
-      setNotice(
-        "We emailed a confirmation link. Check inbox and spam, then confirm before you sign in."
-      );
+      switchMode("signin");
+      setNotice("Account created. Sign in with your password.");
       return;
     }
     if (data.totpRequired) {
