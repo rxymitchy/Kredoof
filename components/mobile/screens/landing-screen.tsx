@@ -86,8 +86,8 @@ export function LandingScreen() {
             Get the credit.
           </h1>
           <p className="mt-4 max-w-md text-[15px] leading-6 text-white/80 sm:text-lg lg:mt-7">
-            Your wallet has a financial history. We help it count — then lenders
-            can fund you.
+            Your wallet has a financial history. We analyze it, then lenders can
+            fund you.
           </p>
           <div className="mt-8 hidden gap-3 lg:flex">
             <Link
