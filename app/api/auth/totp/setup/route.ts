@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/persist";
 import { getSession, stashTotpEnrollSecret } from "@/lib/session";
-import { generateTotpSecret, totpOtpauthUrl } from "@/lib/totp";
+import { generateTotpSecret, totpAccountName, totpOtpauthUrl } from "@/lib/totp";
 
 export async function GET() {
   const session = await getSession();
@@ -30,6 +30,7 @@ export async function GET() {
     enroll: true,
     optional: Boolean(session.signedIn),
     email: user.email,
+    account: totpAccountName(user.email),
     secret,
     otpauthUrl: totpOtpauthUrl(user.email, secret),
   });

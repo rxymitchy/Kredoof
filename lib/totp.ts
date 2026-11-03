@@ -7,9 +7,14 @@ export function generateTotpSecret(): string {
   return base32Encode(randomBytes(20));
 }
 
+export function totpAccountName(email: string): string {
+  return `kredoof ${email.trim()}`;
+}
+
 export function totpOtpauthUrl(account: string, secret: string): string {
-  const label = encodeURIComponent(`Kredoof:${account}`);
-  const issuer = encodeURIComponent("Kredoof");
+  const name = totpAccountName(account);
+  const label = encodeURIComponent(`kredoof:${name}`);
+  const issuer = encodeURIComponent("kredoof");
   return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&digits=6&period=${STEP_SECONDS}`;
 }
 

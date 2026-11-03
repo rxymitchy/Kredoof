@@ -90,7 +90,7 @@ export function AuthForm({
         if (cancelled) return;
         if (data.secret) {
           setTotpSecret(data.secret);
-          setTotpAccount(data.email ?? "");
+          setTotpAccount(data.account ?? (data.email ? `kredoof ${data.email}` : ""));
         } else if (data.enroll === false) {
           switchMode("totp");
         } else if (data.error) {
@@ -301,7 +301,12 @@ export function AuthForm({
       );
       if (setup.secret) {
         setTotpSecret(setup.secret);
-        setTotpAccount(setup.email ?? email ?? identifier);
+        setTotpAccount(
+          setup.account ??
+            (setup.email || email
+              ? `kredoof ${setup.email ?? email}`
+              : identifier)
+        );
       }
       if (data.role) setRole(parseAccountRole(data.role));
       return;
@@ -620,7 +625,7 @@ export function AuthForm({
             In your authenticator app, add a key
           </p>
           <p className="mt-1 text-sm">
-            Account: {totpAccount || "your Kredoof email"}
+            Account: {totpAccount || "kredoof your email"}
           </p>
           <p className="mt-2 break-all font-mono text-sm tracking-wide">
             {totpSecret}
