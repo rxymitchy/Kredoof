@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseUnits } from "viem";
 import {
   useAccount,
   useChainId,
+  useConnect,
+  useConnectors,
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
@@ -13,6 +15,7 @@ import { avalanche } from "wagmi/chains";
 import {
   ArrowDownToLine,
   Files,
+  Loader2,
   LogOut,
   Settings,
   Smartphone,
@@ -27,8 +30,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { BrandMark } from "@/components/brand/mark";
-import { ConnectWalletButton } from "@/components/wallet/connect-wallet-button";
-import { walletConnectEnabled } from "@/lib/wagmi";
 import { AVALANCHE_CHAIN_ID, KREDOOF_TREASURY, USDT_AVALANCHE } from "@/lib/constants";
 import { formatKsh, formatKesOfUsdc, formatUsdt, shortenAddress, usdtFromKes } from "@/lib/format";
 import { hello } from "@/lib/greet";
@@ -173,12 +174,38 @@ function methodLabel(id: DepositMethod) {
   return id;
 }
 
+function walletChoiceLabel(id: string, name: string) {
+  const key = `${id} ${name}`.toLowerCase();
+  if (key.includes("metamask")) return "MetaMask";
+  if (key.includes("coinbase")) return "Coinbase";
+  if (key.includes("walletconnect") || key.includes("reown")) return "WalletConnect";
+  if (id === "injected") return "Browser wallet";
+  return name;
+}
+
 export function LenderDeskScreen() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const connectors = useConnectors();
+  const { connect, isPending: isConnecting, variables } = useConnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const { writeContractAsync, isPending: isSending } = useWriteContract();
+  const [walletPicker, setWalletPicker] = useState(false);
+  const walletChoices = useMemo(() => {
+    const preferred = ["MetaMask", "Coinbase", "WalletConnect", "Browser wallet"];
+    const byLabel = new Map<string, (typeof connectors)[number]>();
+    for (const connector of connectors) {
+      const label = walletChoiceLabel(connector.id, connector.name);
+      const existing = byLabel.get(label);
+      if (!existing || connector.id.toLowerCase().includes("metamask")) {
+        byLabel.set(label, connector);
+      }
+    }
+    return preferred
+      .filter((label) => byLabel.has(label))
+      .map((label) => ({ label, connector: byLabel.get(label)! }));
+  }, [connectors]);
   const [tab, setTab] = useState<Tab>("wallet");
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<MarketplaceFile[]>([]);
@@ -739,7 +766,13 @@ export function LenderDeskScreen() {
         </div>
       </nav>
 
-      <Sheet open={depositOpen} onOpenChange={setDepositOpen}>
+      <Sheet
+        open={depositOpen}
+        onOpenChange={(open) => {
+          setDepositOpen(open);
+          if (!open) setWalletPicker(false);
+        }}
+      >
         <SheetContent side="bottom" className="rounded-t-[24px]">
           <SheetHeader>
             <SheetTitle>Deposit</SheetTitle>
@@ -809,7 +842,6 @@ export function LenderDeskScreen() {
             </div>
             {depositMethod === "avalanche" ? (
               <div className="grid gap-2">
-                <ConnectWalletButton />
                 {isConnected && address ? (
                   <p className="text-xs text-muted-foreground">
                     Connected {shortenAddress(address)}
@@ -817,13 +849,54 @@ export function LenderDeskScreen() {
                       ? " · switch this wallet to Avalanche"
                       : " · Send USDT next. Avalanche has to confirm before we add it."}
                   </p>
+                ) : walletPicker ? (
+                  <>
+                    <p className="text-xs font-semibold text-foreground">
+                      Choose a wallet
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {walletChoices.map(({ label, connector }) => {
+                        const pending = Boolean(
+                          isConnecting &&
+                            variables?.connector &&
+                            "id" in variables.connector &&
+                            variables.connector.id === connector.id
+                        );
+                        return (
+                          <button
+                            key={connector.id}
+                            type="button"
+                            disabled={isConnecting}
+                            onClick={() => connect({ connector })}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-mint-deep px-3 py-3 text-sm font-medium text-white disabled:opacity-55"
+                          >
+                            {pending ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Wallet size={14} />
+                            )}
+                            {pending ? "Connecting…" : label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      MetaMask or Coinbase will open so you can approve. Then send USDT.
+                    </p>
+                  </>
                 ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Opens your real wallet — MetaMask, Coinbase, Core, and others on Avalanche.
-                    {!walletConnectEnabled
-                      ? " Phone QR (WalletConnect) needs a Reown project id in env."
-                      : " WalletConnect QR works too."}
-                  </p>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setWalletPicker(true)}
+                      className="inline-flex w-full items-center justify-center rounded-full bg-mint-deep px-4 py-3 text-sm font-medium text-white"
+                    >
+                      Connect Avalanche wallet
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      Next you pick MetaMask or Coinbase, then we send USDT on Avalanche.
+                    </p>
+                  </>
                 )}
               </div>
             ) : null}
