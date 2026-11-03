@@ -1,7 +1,3 @@
-/** Sample wallet used when someone opens the demo result without connecting. */
-export const APPLICANT_WALLET =
-  "0x7A3d4e8f12b90c45a67e81d93c4f00aabbcc91F2" as const;
-
 /** Display rate only. Not a live FX feed. Loans are USDT; KES is how lenders think. */
 export const KES_PER_USDC = 129.4;
 export const KES_PER_USDT = KES_PER_USDC;
@@ -23,12 +19,3 @@ export const USDT_AVALANCHE =
 export const KREDOOF_TREASURY =
   (process.env.NEXT_PUBLIC_TREASURY_ADDRESS as `0x${string}` | undefined) ??
   "0xF48AFA3d8443752630B6BB9cFEA5fA68199402f7";
-
-export const DASHBOARD_NAV = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/transactions", label: "Payments" },
-  { href: "/dashboard/activity", label: "How money moves" },
-  { href: "/dashboard/risk", label: "Warning signs" },
-  { href: "/dashboard/decision", label: "Loan result" },
-  { href: "/dashboard/report", label: "Documents" },
-] as const;

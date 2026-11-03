@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
-  transpilePackages: ["@rainbow-me/rainbowkit", "@wagmi/core", "wagmi"],
+  transpilePackages: ["@wagmi/core", "wagmi"],
   async headers() {
     return [
       {

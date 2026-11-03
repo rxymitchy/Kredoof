@@ -18,10 +18,13 @@ import {
 import { generateReportHtml, reportIdFor } from "@/lib/report-html";
 import { bandForScore } from "@/lib/loan-bands";
 import { LONG_TERM_MIN_SCORE } from "@/lib/loan-terms";
-import { mockCreditDecision, mockFinancialProfile } from "@/data";
 import type { EngineProfile } from "@/services/engine";
-import type { Applicant } from "@/types";
-import type { OnChainTransaction } from "@/types";
+import type {
+  Applicant,
+  CreditDecision,
+  FinancialProfile,
+  OnChainTransaction,
+} from "@/types";
 
 const EMPTY_APPLICANT: Applicant = {
   name: "",
@@ -31,6 +34,33 @@ const EMPTY_APPLICANT: Applicant = {
   location: "",
   walletAddress: "0x0000000000000000000000000000000000000000",
   network: "Avalanche",
+};
+
+const EMPTY_DECISION: CreditDecision = {
+  score: 0,
+  scoreMax: 850,
+  status: "building",
+  statusLabel: "",
+  risk: "medium-low",
+  riskLabel: "",
+  recommendedLimitKsh: 0,
+  recommendedLimitLabel: "",
+  rationale: [],
+  methodology: [],
+  source: "engine",
+};
+
+const EMPTY_FINANCIAL: FinancialProfile = {
+  totalTransactions: 0,
+  transactionVolumeKsh: 0,
+  transactionVolumeLabel: "",
+  averageMonthlyVolumeKsh: 0,
+  activeCounterparties: 0,
+  onTimeRepaymentPercent: 0,
+  walletAgeMonths: 0,
+  monthlyVolume: [],
+  inflowsVsOutflows: [],
+  source: "engine",
 };
 
 export type AppStage = "how" | "auth" | "connect" | "bundling" | "main";
@@ -176,8 +206,8 @@ export function KredoofApp({
     };
   }, [startAt, initialAuthMode, router]);
 
-  const decision = liveProfile?.decision ?? mockCreditDecision;
-  const financial = liveProfile?.financial ?? mockFinancialProfile;
+  const decision = liveProfile?.decision ?? EMPTY_DECISION;
+  const financial = liveProfile?.financial ?? EMPTY_FINANCIAL;
   const txs = liveTxs ?? [];
   const applicant = liveProfile?.applicant ?? EMPTY_APPLICANT;
   const hasLiveData = Boolean(liveProfile?.decision);

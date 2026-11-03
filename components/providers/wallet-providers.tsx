@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { cookieToInitialState } from "wagmi";
 import { AppProviders } from "@/components/providers/app-providers";
 import { wagmiConfig } from "@/lib/wagmi";
-import "@rainbow-me/rainbowkit/styles.css";
 
 export async function WalletProviders({
   children,

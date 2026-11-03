@@ -1402,6 +1402,7 @@ export async function spendLenderKes(
   return user.kesFloat;
 }
 
+/** paypal and card are leftover labels on old rows. New deposits are mpesa or avalanche. */
 export type DepositMethod = "mpesa" | "avalanche" | "paypal" | "card";
 export type DepositStatus = "pending" | "confirmed" | "failed";
 

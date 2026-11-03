@@ -15,11 +15,9 @@ Scoring today uses USDC and USDT on one chain (Avalanche). Loans send and repay 
 
 ## What you can do
 
-- **Get credit** — Sign up with name, email, Kenyan phone, and password. Connect a wallet or open the sample result. See payments, the score, and a downloadable summary.
-- **Become a lender** — Sign up as a lender. Open the desk, pick a qualified file, lock it, then fund in KSh. The borrower receives USDT.
+- **Get credit** — Sign up with name, email, Kenyan phone, and password. Connect a wallet. Home explains the steps; Wallet shows real Avalanche USDT and USDC.
+- **Become a lender** — Sign up as a lender. Deposit with M-Pesa or Avalanche USDT, pick a qualified file, then fund. The borrower receives USDT.
 - **Sign in** — Email, phone, or Continue with Google if that Gmail already has a Kredoof account. New people sign up first.
-
-If the wallet has no stablecoin payments on this chain yet, use the sample result.
 
 ---
 
@@ -31,7 +29,7 @@ If the wallet has no stablecoin payments on this chain yet, use the sample resul
 | Hosting | Vercel |
 | Accounts | Neon Postgres in production. Local can run without a database. |
 | Email | Resend (optional) |
-| Wallets | RainbowKit |
+| Wallets | MetaMask, Core, Trust on Avalanche |
 | Scoring | Python app in `backend/` |
 
 Node.js 20+ and npm for the website. Python 3.12+ only if you run scoring on your machine.
