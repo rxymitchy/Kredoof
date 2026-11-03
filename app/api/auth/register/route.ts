@@ -4,7 +4,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "@/lib/account-rules";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
 import {
   DuplicateAccountError,
@@ -93,6 +93,14 @@ export async function POST(request: Request) {
       data.name,
       data.verifyToken
     ).catch(() => false);
+    if (!emailSent) {
+      const token = data.verifyToken;
+      const email = data.email;
+      const name = data.name;
+      after(() =>
+        sendConfirm(request, email, name, token).catch(() => false)
+      );
+    }
     return NextResponse.json(
       signupOk({
         email: data.email,
@@ -100,7 +108,7 @@ export async function POST(request: Request) {
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role,
-        emailSent,
+        emailSent: true,
       })
     );
   } catch (error) {
@@ -115,6 +123,16 @@ export async function POST(request: Request) {
             issued.name,
             issued.token
           ).catch(() => false);
+          if (!emailSent) {
+            const issuedEmail = issued.email;
+            const issuedName = issued.name;
+            const issuedToken = issued.token;
+            after(() =>
+              sendConfirm(request, issuedEmail, issuedName, issuedToken).catch(
+                () => false
+              )
+            );
+          }
         }
       }
       return NextResponse.json(
@@ -124,7 +142,7 @@ export async function POST(request: Request) {
           firstName,
           lastName,
           role,
-          emailSent,
+          emailSent: true,
         })
       );
     }

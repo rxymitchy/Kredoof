@@ -14,16 +14,33 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function fromAddress(): string {
-  let raw = process.env.EMAIL_FROM?.trim() ?? "";
+function unwrap(raw: string | undefined): string {
+  let value = raw?.trim() ?? "";
   if (
-    (raw.startsWith('"') && raw.endsWith('"')) ||
-    (raw.startsWith("'") && raw.endsWith("'"))
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
   ) {
-    raw = raw.slice(1, -1).trim();
+    value = value.slice(1, -1).trim();
   }
-  if (!raw || /vercel\.app/i.test(raw)) return RESEND_TEST_FROM;
+  return value;
+}
+
+function fromAddress(): string {
+  const raw = unwrap(process.env.EMAIL_FROM);
+  if (!raw || /vercel\.app/i.test(raw) || /^\[sensitive\]$/i.test(raw)) {
+    return RESEND_TEST_FROM;
+  }
   return raw;
+}
+
+function resendKey(): string {
+  const key = unwrap(process.env.RESEND_API_KEY);
+  if (!key || /^\[sensitive\]$/i.test(key)) return "";
+  return key;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function postResend(input: {
@@ -33,24 +50,38 @@ async function postResend(input: {
   subject: string;
   html: string;
   text: string;
-}): Promise<{ ok: boolean; status: number; detail: string }> {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: input.from,
-      to: [input.to],
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-    }),
-    signal: AbortSignal.timeout(12_000),
-  });
-  const detail = await res.text().catch(() => "");
-  return { ok: res.ok, status: res.status, detail };
+}): Promise<{ ok: boolean; status: number; retryable: boolean; detail: string }> {
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: input.from,
+        to: [input.to],
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const detail = await res.text().catch(() => "");
+    const retryable = res.status === 429 || res.status >= 500;
+    return { ok: res.ok, status: res.status, retryable, detail };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "network";
+    return { ok: false, status: 0, retryable: true, detail };
+  }
+}
+
+async function sendOnce(
+  key: string,
+  from: string,
+  input: { to: string; subject: string; html: string; text: string }
+) {
+  return postResend({ key, from, ...input });
 }
 
 async function sendEmail(input: {
@@ -59,26 +90,25 @@ async function sendEmail(input: {
   html: string;
   text: string;
 }): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY?.trim();
+  const key = resendKey();
   if (!key) {
     console.error("RESEND_API_KEY is not set; confirmation email was not sent");
     return false;
   }
-  const preferred = fromAddress();
-  let result = await postResend({ key, from: preferred, ...input });
-  if (!result.ok && preferred !== RESEND_TEST_FROM) {
-    console.error(
-      "Resend failed with EMAIL_FROM, retrying test sender",
-      result.status,
-      result.detail
-    );
-    result = await postResend({ key, from: RESEND_TEST_FROM, ...input });
+  const senders = [fromAddress()];
+  if (senders[0] !== RESEND_TEST_FROM) senders.push(RESEND_TEST_FROM);
+
+  let last = { ok: false, status: 0, retryable: false, detail: "" };
+  for (const from of senders) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      last = await sendOnce(key, from, input);
+      if (last.ok) return true;
+      if (!last.retryable) break;
+      await sleep(400 * (attempt + 1));
+    }
   }
-  if (!result.ok) {
-    console.error("Resend email failed", result.status, result.detail);
-    return false;
-  }
-  return true;
+  console.error("Resend email failed", last.status, last.detail);
+  return false;
 }
 
 export async function sendRegistrationEmail(input: {

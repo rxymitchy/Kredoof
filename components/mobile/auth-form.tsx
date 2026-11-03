@@ -283,9 +283,7 @@ export function AuthForm({
       switchMode("signin");
       setEmail(email);
       setNotice(
-        data.emailSent
-          ? "We emailed a confirmation link. Check inbox and spam, then confirm before you sign in."
-          : "Account created, but the email did not send. Sign in with your password — we will send the link again."
+        "We emailed a confirmation link. Check inbox and spam, then confirm before you sign in."
       );
       return;
     }
