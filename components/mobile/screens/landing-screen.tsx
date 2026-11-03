@@ -47,11 +47,14 @@ export function LandingScreen() {
       .catch(() => undefined);
   }, []);
 
-  const creditHref = signedIn
-    ? role === "lender"
-      ? "/lend"
-      : "/onboard?step=connect"
-    : "/onboard?step=signup";
+  const localPreview = process.env.NODE_ENV === "development";
+  const creditHref = localPreview
+    ? "/dashboard"
+    : signedIn
+      ? role === "lender"
+        ? "/lend"
+        : "/onboard?step=connect"
+      : "/onboard?step=signup";
   const lendHref =
     signedIn && role === "lender" ? "/lend" : "/onboard?step=signup&as=lender";
 

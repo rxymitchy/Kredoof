@@ -40,11 +40,14 @@ export function SiteDock({
     };
   }, [fadeOnScroll]);
 
-  const primaryHref = signedIn
-    ? role === "lender"
-      ? "/lend"
-      : "/onboard?step=connect"
-    : "/onboard?step=signup";
+  const localPreview = process.env.NODE_ENV === "development";
+  const primaryHref = localPreview
+    ? "/dashboard"
+    : signedIn
+      ? role === "lender"
+        ? "/lend"
+        : "/onboard?step=connect"
+      : "/onboard?step=signup";
   const primaryLabel = signedIn
     ? role === "lender"
       ? "Desk"

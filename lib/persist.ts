@@ -226,6 +226,20 @@ function toPublicAccount(user: StoredUser): PublicAccount {
 }
 
 const DEV_LENDER_EMAIL = "lender@localhost";
+const DEV_BORROWER_EMAIL = "borrower@localhost";
+
+function devBorrowerPublic(): PublicAccount {
+  return {
+    email: DEV_BORROWER_EMAIL,
+    phone: "254700000002",
+    name: "Local Borrower",
+    firstName: "Local",
+    lastName: "Borrower",
+    wallet: null,
+    role: "borrower",
+    totpEnabled: false,
+  };
+}
 
 function devLenderPublic(): PublicAccount {
   return {
@@ -1601,11 +1615,10 @@ export async function getPublicAccount(
 ): Promise<PublicAccount | null> {
   const user = await getUserByEmail(emailRaw);
   if (user) return toPublicAccount(user);
-  if (
-    process.env.NODE_ENV === "development" &&
-    normalizeEmail(emailRaw) === DEV_LENDER_EMAIL
-  ) {
-    return devLenderPublic();
+  if (process.env.NODE_ENV === "development") {
+    const email = normalizeEmail(emailRaw);
+    if (email === DEV_LENDER_EMAIL) return devLenderPublic();
+    if (email === DEV_BORROWER_EMAIL) return devBorrowerPublic();
   }
   return null;
 }
@@ -1639,6 +1652,34 @@ export async function updatePublicProfile(
       () => null
     );
   }
+  return toPublicAccount(user);
+}
+
+/** Local `next dev` only. Lets /dashboard work without a real login. */
+export async function ensureDevBorrower(): Promise<PublicAccount> {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Dev borrower is local only");
+  }
+  const existing = await getUserByEmail(DEV_BORROWER_EMAIL);
+  if (existing) return toPublicAccount(existing);
+  if (await usingDb()) return devBorrowerPublic();
+  const phone = "254700000002";
+  const user: StoredUser = {
+    id: newId(),
+    email: DEV_BORROWER_EMAIL,
+    phone,
+    passwordHash: hashPassword(randomBytes(24).toString("hex")),
+    firstName: "Local",
+    lastName: "Borrower",
+    name: "Local Borrower",
+    wallet: null,
+    emailVerified: true,
+    createdAt: Date.now(),
+    role: "borrower",
+  };
+  await writeObject(emailIndexPath(user.email), { id: user.id }, "update").catch(() => null);
+  await writeObject(phoneIndexPath(phone), { id: user.id }, "update").catch(() => null);
+  await saveUser(user, "update");
   return toPublicAccount(user);
 }
 

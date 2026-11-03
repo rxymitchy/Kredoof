@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
 import { isValidName, phoneHint } from "@/lib/account-rules";
-import { requireLender } from "@/lib/lender-auth";
 import {
   DuplicateAccountError,
   getPublicAccount,
   updatePublicProfile,
 } from "@/lib/persist";
-import { establishSession } from "@/lib/session";
+import { establishSession, readActiveSession } from "@/lib/session";
+
+async function requireAccountEmail() {
+  const session = await readActiveSession();
+  if (!session.signedIn || !session.email) {
+    return {
+      email: null as string | null,
+      error: NextResponse.json({ error: "Sign in first" }, { status: 401 }),
+    };
+  }
+  return { email: session.email, error: null as NextResponse | null };
+}
 
 export async function GET() {
-  const gate = await requireLender();
+  const gate = await requireAccountEmail();
   if (gate.error) return gate.error;
   const account = await getPublicAccount(gate.email!);
   if (!account) {
@@ -19,7 +29,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const gate = await requireLender();
+  const gate = await requireAccountEmail();
   if (gate.error) return gate.error;
   const body = (await request.json()) as {
     firstName?: string;

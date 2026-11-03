@@ -28,7 +28,7 @@ export function paymentMethods(): MethodInfo[] {
     {
       id: "avalanche",
       label: "Avalanche wallet",
-      hint: "Send USDT from MetaMask, Coinbase Wallet, or WalletConnect. Balance updates when the chain confirms.",
+      hint: "Send USDT from MetaMask, Core, or Trust Wallet. Balance updates when the chain confirms.",
       available: true,
     },
   ];

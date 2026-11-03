@@ -25,6 +25,21 @@ export async function GET() {
     );
   }
   if (user.totpEnabled) {
+    if (session.signedIn && user.totpSecret) {
+      const otpauthUrl = totpOtpauthUrl(user.email, user.totpSecret);
+      const qrDataUrl = await totpQrDataUrl(user.email, user.totpSecret).catch(
+        () => ""
+      );
+      return NextResponse.json({
+        enroll: false,
+        relabel: true,
+        email: user.email,
+        account: totpAccountName(user.email),
+        secret: user.totpSecret,
+        otpauthUrl,
+        qrDataUrl,
+      });
+    }
     return NextResponse.json({ enroll: false, email: user.email });
   }
   const secret = session.totpPendingSecret || generateTotpSecret();

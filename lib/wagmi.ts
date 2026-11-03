@@ -1,6 +1,11 @@
 import { cookieStorage, createConfig, createStorage, http } from "wagmi";
 import { avalanche } from "wagmi/chains";
-import { coinbaseWallet, injected, metaMask, walletConnect } from "wagmi/connectors";
+import { metaMask, walletConnect } from "wagmi/connectors";
+import {
+  TRUST_WALLETCONNECT_ID,
+  coreWalletConnector,
+  trustWalletConnector,
+} from "@/lib/wallets";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ?? "";
@@ -12,26 +17,26 @@ const hasWalletConnectProjectId =
 export const wagmiConfig = createConfig({
   chains: [avalanche],
   connectors: [
-    injected({ shimDisconnect: true }),
     metaMask({
       dappMetadata: {
         name: "Kredoof",
         url: "https://kredoof.vercel.app",
       },
     }),
-    coinbaseWallet({
-      appName: "Kredoof",
-      preference: "all",
-    }),
+    coreWalletConnector(),
+    trustWalletConnector(),
     ...(hasWalletConnectProjectId
       ? [
           walletConnect({
             projectId: walletConnectProjectId,
             showQrModal: true,
+            qrModalOptions: {
+              explorerRecommendedWalletIds: [TRUST_WALLETCONNECT_ID],
+              explorerExcludedWalletIds: "ALL",
+            },
             metadata: {
               name: "Kredoof",
-              description:
-                "See if your payments can support a loan.",
+              description: "See if your payments can support a loan.",
               url: "https://kredoof.vercel.app",
               icons: [],
             },

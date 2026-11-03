@@ -19,9 +19,11 @@ import {
   LogOut,
   Settings,
   Smartphone,
+  Sparkles,
   UserRound,
   Wallet,
 } from "lucide-react";
+import { LenderDemoVideo } from "@/components/mobile/lender-demo-video";
 import { Avatar, PrimaryButton } from "@/components/mobile/ui";
 import {
   Sheet,
@@ -35,10 +37,15 @@ import { formatKsh, formatKesOfUsdc, formatUsdt, shortenAddress, usdtFromKes } f
 import { hello } from "@/lib/greet";
 import { DAILY_INTEREST_LABEL, LEAD_FEE_KES, SHORT_TERM_DAYS } from "@/lib/loan-terms";
 import { cn } from "@/lib/utils";
+import {
+  activeConnectorId,
+  connectDisplayWallet,
+  listedWallets,
+} from "@/lib/wallets";
 import type { MarketplaceFile } from "@/lib/marketplace-file";
 import type { DepositMethod } from "@/lib/persist";
 
-type Tab = "wallet" | "files" | "profile" | "settings";
+type Tab = "home" | "wallet" | "files" | "profile" | "settings";
 type MethodInfo = {
   id: DepositMethod;
   label: string;
@@ -75,6 +82,7 @@ const ERC20_TRANSFER = [
 ] as const;
 
 const NAV: { id: Tab; label: string; icon: typeof Wallet }[] = [
+  { id: "home", label: "Home", icon: Sparkles },
   { id: "wallet", label: "Wallet", icon: Wallet },
   { id: "files", label: "Files", icon: Files },
   { id: "profile", label: "Profile", icon: UserRound },
@@ -174,39 +182,17 @@ function methodLabel(id: DepositMethod) {
   return id;
 }
 
-function walletChoiceLabel(id: string, name: string) {
-  const key = `${id} ${name}`.toLowerCase();
-  if (key.includes("metamask")) return "MetaMask";
-  if (key.includes("coinbase")) return "Coinbase";
-  if (key.includes("walletconnect") || key.includes("reown")) return "WalletConnect";
-  if (id === "injected") return "Browser wallet";
-  return name;
-}
-
 export function LenderDeskScreen() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const connectors = useConnectors();
-  const { connect, isPending: isConnecting, variables } = useConnect();
+  const { connectAsync, isPending: isConnecting, variables } = useConnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const { writeContractAsync, isPending: isSending } = useWriteContract();
   const [walletPicker, setWalletPicker] = useState(false);
-  const walletChoices = useMemo(() => {
-    const preferred = ["MetaMask", "Coinbase", "WalletConnect", "Browser wallet"];
-    const byLabel = new Map<string, (typeof connectors)[number]>();
-    for (const connector of connectors) {
-      const label = walletChoiceLabel(connector.id, connector.name);
-      const existing = byLabel.get(label);
-      if (!existing || connector.id.toLowerCase().includes("metamask")) {
-        byLabel.set(label, connector);
-      }
-    }
-    return preferred
-      .filter((label) => byLabel.has(label))
-      .map((label) => ({ label, connector: byLabel.get(label)! }));
-  }, [connectors]);
-  const [tab, setTab] = useState<Tab>("wallet");
+  const walletChoices = useMemo(() => listedWallets(connectors), [connectors]);
+  const [tab, setTab] = useState<Tab>("home");
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState<MarketplaceFile[]>([]);
   const [mine, setMine] = useState<MarketplaceFile[]>([]);
@@ -487,9 +473,67 @@ export function LenderDeskScreen() {
           </nav>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-24 md:pb-4">
+        <div className="min-w-0 flex-1 pb-32 md:pb-4">
           {error ? <p className="mb-4 text-sm text-[#C24545]">{error}</p> : null}
           {notice ? <p className="mb-4 text-sm text-mint-deep">{notice}</p> : null}
+
+          {tab === "home" ? (
+            <div className="fade-up mb-8 grid gap-6">
+              <div>
+                <p className="text-sm text-mint-deep md:hidden">{hi}</p>
+                <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
+                  {hi}
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                  You put in shillings, pick a qualified file, and send USDT.
+                  Sample clips are marked Sample. Wallet and Files stay real.
+                </p>
+              </div>
+              <ol className="grid gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    "Open Wallet and deposit with M-Pesa or Avalanche USDT. The balance is only money that arrived.",
+                    `Take a qualified file. That exclusive look costs ${formatKsh(LEAD_FEE_KES)} from your float.`,
+                    "Fund from your float. The borrower receives USDT on Avalanche. You keep daily interest.",
+                    "Kredoof takes 1% only when you fund. Repayment comes back as USDT when they actually pay.",
+                  ] as const
+                ).map((step, i) => (
+                  <li
+                    key={step}
+                    className="rounded-[1.4rem] border border-hairline bg-white px-4 py-4 text-sm leading-6 text-muted-foreground"
+                  >
+                    <span className="font-mono text-[10px] tracking-[0.14em] text-mint-deep">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <p className="mt-2 text-foreground">{step}</p>
+                  </li>
+                ))}
+              </ol>
+              <div className="flex flex-wrap gap-3">
+                <PrimaryButton
+                  className="sm:w-auto sm:px-8"
+                  onClick={() => setDepositOpen(true)}
+                >
+                  Deposit
+                </PrimaryButton>
+                <button
+                  type="button"
+                  onClick={() => setTab("files")}
+                  className="rounded-full border border-hairline px-5 py-3 text-sm font-semibold"
+                >
+                  Open Files
+                </button>
+              </div>
+              <div>
+                <h2 className="text-xl tracking-[-0.04em]">Your side, in a clip</h2>
+                <p className="mt-1 mb-3 text-sm text-muted-foreground">
+                  This is a demo of a lender desk. It is not your float or a live
+                  borrower.
+                </p>
+                <LenderDemoVideo />
+              </div>
+            </div>
+          ) : null}
 
           {tab === "wallet" ? (
             <div className="fade-up grid gap-6">
@@ -706,20 +750,27 @@ export function LenderDeskScreen() {
                 <h2 className="text-sm font-semibold">Authenticator</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {profile?.totpEnabled
-                    ? "An authenticator app is on for this account."
+                    ? "An authenticator app is on. If the name in the app is old, scan the QR again so it shows Kredoof : your email."
                     : "Optional extra lock when you sign in."}
                 </p>
-                {!profile?.totpEnabled ? (
-                  <button
-                    type="button"
-                    onClick={() => router.push("/onboard?step=totp-setup")}
-                    className="mt-3 text-sm font-semibold text-mint-deep"
-                  >
-                    Set up authenticator
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => router.push("/onboard?step=totp-setup")}
+                  className="mt-3 text-sm font-semibold text-mint-deep"
+                >
+                  {profile?.totpEnabled
+                    ? "Update the name in your app"
+                    : "Set up authenticator"}
+                </button>
               </div>
               <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTab("home")}
+                  className="text-left text-sm font-semibold text-mint-deep"
+                >
+                  How lending works is on Home
+                </button>
                 <button
                   type="button"
                   onClick={() => void signOut()}
@@ -748,13 +799,13 @@ export function LenderDeskScreen() {
               type="button"
               onClick={() => setTab(item.id)}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold",
+                "flex flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 text-[10px] font-semibold sm:px-3 sm:text-[11px]",
                 tab === item.id ? "text-foreground" : "text-[#a9b0a2]"
               )}
             >
               <span
                 className={cn(
-                  "flex h-8 w-12 items-center justify-center rounded-xl",
+                  "flex h-8 w-10 items-center justify-center rounded-xl sm:w-12",
                   tab === item.id ? "bg-mint-deep text-white" : "bg-transparent"
                 )}
               >
@@ -803,7 +854,7 @@ export function LenderDeskScreen() {
                     {
                       id: "avalanche" as const,
                       label: "Avalanche wallet",
-                      hint: "Send USDT from MetaMask, Coinbase Wallet, or WalletConnect.",
+                      hint: "Send USDT from MetaMask, Core, or Trust Wallet.",
                       available: true,
                     },
                     {
@@ -855,19 +906,35 @@ export function LenderDeskScreen() {
                       Choose a wallet
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {walletChoices.map(({ label, connector }) => {
+                      {walletChoices.map((item) => {
                         const pending = Boolean(
                           isConnecting &&
                             variables?.connector &&
                             "id" in variables.connector &&
-                            variables.connector.id === connector.id
+                            item.matches.some(
+                              (match) =>
+                                match.id ===
+                                activeConnectorId(variables.connector)
+                            )
                         );
                         return (
                           <button
-                            key={connector.id}
+                            key={item.label}
                             type="button"
                             disabled={isConnecting}
-                            onClick={() => connect({ connector })}
+                            onClick={() => {
+                              void connectDisplayWallet(
+                                item.label,
+                                item.matches,
+                                connectAsync
+                              ).catch((err) =>
+                                setError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Could not connect that wallet."
+                                )
+                              );
+                            }}
                             className="inline-flex items-center justify-center gap-1.5 rounded-full bg-mint-deep px-3 py-3 text-sm font-medium text-white disabled:opacity-55"
                           >
                             {pending ? (
@@ -875,13 +942,13 @@ export function LenderDeskScreen() {
                             ) : (
                               <Wallet size={14} />
                             )}
-                            {pending ? "Connecting…" : label}
+                            {pending ? "Connecting…" : item.label}
                           </button>
                         );
                       })}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      MetaMask or Coinbase will open so you can approve. Then send USDT.
+                      MetaMask, Core, or Trust Wallet will open so you can approve. Then send USDT.
                     </p>
                   </>
                 ) : (
@@ -894,7 +961,7 @@ export function LenderDeskScreen() {
                       Connect Avalanche wallet
                     </button>
                     <p className="text-xs text-muted-foreground">
-                      Next you pick MetaMask or Coinbase, then we send USDT on Avalanche.
+                      Next you pick MetaMask, Core, or Trust Wallet, then we send USDT on Avalanche.
                     </p>
                   </>
                 )}

@@ -37,7 +37,7 @@ export function AuthScreen({
           : mode === "totp"
             ? "Enter your app code"
             : mode === "totp-setup"
-              ? "Protect this account"
+              ? "Authenticator"
               : "Create your account";
   const blurb =
     mode === "signin"
@@ -51,7 +51,7 @@ export function AuthScreen({
           : mode === "totp"
             ? "Open Google Authenticator or Authy and type the 6-digit code."
             : mode === "totp-setup"
-              ? "We strongly recommend an authenticator app. You can skip this and do it later."
+              ? "The account in your app should read Kredoof : your email."
               : "Tell us who you are. We look at the money that already moved — not a stack of statements.";
 
   return (

@@ -9,13 +9,13 @@ export function generateTotpSecret(): string {
 }
 
 export function totpAccountName(email: string): string {
-  return `kredoof ${email.trim()}`;
+  return `Kredoof : ${email.trim()}`;
 }
 
 export function totpOtpauthUrl(account: string, secret: string): string {
   const name = totpAccountName(account);
-  const label = encodeURIComponent(`kredoof:${name}`);
-  const issuer = encodeURIComponent("kredoof");
+  const label = encodeURIComponent(name);
+  const issuer = encodeURIComponent("Kredoof");
   return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&digits=6&period=${STEP_SECONDS}`;
 }
 

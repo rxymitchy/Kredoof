@@ -8,13 +8,25 @@ import {
   ChevronRight,
   Clock,
   Download,
+  Loader2,
+  LogOut,
   Printer,
+  Settings,
   ShieldCheck,
   Sparkles,
+  UserRound,
   Wallet,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useConnect, useConnectors } from "wagmi";
+import { useRouter } from "next/navigation";
+import {
+  useAccount,
+  useChainId,
+  useConnect,
+  useConnectors,
+  useSwitchChain,
+} from "wagmi";
+import { avalanche } from "wagmi/chains";
 import { Avatar, Orb, PrimaryButton } from "@/components/mobile/ui";
 import {
   Sheet,
@@ -37,7 +49,14 @@ import { FlowChart } from "@/components/dashboard/flow-chart";
 import { ScoreRing } from "@/components/dashboard/score-ring";
 import { BrandMark } from "@/components/brand/mark";
 import { LoanPanel } from "@/components/mobile/loan-panel";
-import { firstNameOf, hello } from "@/lib/greet";
+import { SampleDemoVideo } from "@/components/mobile/sample-demo-video";
+import { AVALANCHE_CHAIN_ID } from "@/lib/constants";
+import {
+  activeConnectorId,
+  connectDisplayWallet,
+  listedWallets,
+} from "@/lib/wallets";
+import { hello } from "@/lib/greet";
 import { bandForScore } from "@/lib/loan-bands";
 import { cn } from "@/lib/utils";
 import type {
@@ -55,12 +74,31 @@ const TONE = {
   prime: { bg: "#F6EFD4", fg: "#9C7B12" },
 } as const;
 
-export type MainTab = "portfolio" | "agent" | "report";
+export type MainTab = "wallet" | "home" | "profile" | "settings";
+export type HomePane = "credit" | "review" | "docs";
 export type AgentStage = "idle" | "thinking" | "done";
+
+type Profile = {
+  email: string;
+  phone: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  totpEnabled: boolean;
+};
+
+const NAV: { id: MainTab; label: string; icon: typeof Wallet }[] = [
+  { id: "home", label: "Home", icon: Sparkles },
+  { id: "wallet", label: "Wallet", icon: Wallet },
+  { id: "profile", label: "Profile", icon: UserRound },
+  { id: "settings", label: "Settings", icon: Settings },
+];
 
 export function MainScreen({
   tab,
   onTab,
+  homePane = "credit",
+  onHomePane,
   decision,
   financial,
   txs,
@@ -82,9 +120,13 @@ export function MainScreen({
   onLoanChange,
   onDisconnectWallet,
   onDeleteAccount,
+  hasLiveData = false,
+  txsLoading = false,
 }: {
   tab: MainTab;
   onTab: (tab: MainTab) => void;
+  homePane?: HomePane;
+  onHomePane?: (pane: HomePane) => void;
   decision: CreditDecision;
   financial: FinancialProfile;
   txs: OnChainTransaction[];
@@ -106,24 +148,94 @@ export function MainScreen({
   onLoanChange?: () => void;
   onDisconnectWallet?: () => void;
   onDeleteAccount?: () => void;
+  hasLiveData?: boolean;
+  txsLoading?: boolean;
 }) {
-  const { address, connector } = useAccount();
+  const router = useRouter();
+  const { address, connector, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
   const connectors = useConnectors();
-  const { connect, isPending } = useConnect();
-  const [switcher, setSwitcher] = useState(false);
+  const { connectAsync, isPending, variables } = useConnect();
   const [showDiff, setShowDiff] = useState(false);
   const [accountNote, setAccountNote] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<OnChainTransaction | null>(
     null
   );
-  const [hi, setHi] = useState(`Hello, ${firstNameOf(applicant.owner)}`);
-  useEffect(() => {
-    setHi(hello(applicant.owner));
-  }, [applicant.owner]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [hi, setHi] = useState("Hello");
+  const onAvalanche = chainId === AVALANCHE_CHAIN_ID;
+  const walletChoices = useMemo(() => listedWallets(connectors), [connectors]);
 
-  const displayAddress = address
-    ? shortenAddress(address)
-    : shortenAddress(applicant.walletAddress);
+  useEffect(() => {
+    setHi(hello(profile?.name));
+  }, [profile?.name]);
+
+  useEffect(() => {
+    fetch("/api/account/profile")
+      .then((res) => res.json())
+      .then((account) => {
+        if (!account?.email) return;
+        setProfile(account);
+        setFirstName(account.firstName ?? "");
+        setLastName(account.lastName ?? "");
+        setPhone(account.phone ?? "");
+      })
+      .catch(() => null);
+  }, []);
+
+  async function saveProfile() {
+    setSaving(true);
+    setAccountNote(null);
+    setNotice(null);
+    const res = await fetch("/api/account/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName, lastName, phone }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSaving(false);
+    if (!res.ok) {
+      setAccountNote(data.error ?? "Could not save");
+      return;
+    }
+    setProfile(data);
+    setNotice("Profile saved.");
+  }
+
+  async function savePassword() {
+    setSaving(true);
+    setAccountNote(null);
+    setNotice(null);
+    const res = await fetch("/api/account/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, nextPassword }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSaving(false);
+    if (!res.ok) {
+      setAccountNote(data.error ?? "Could not change password");
+      return;
+    }
+    setCurrentPassword("");
+    setNextPassword("");
+    setNotice("Password updated.");
+  }
+
+  function goHome(pane: HomePane) {
+    onTab("home");
+    onHomePane?.(pane);
+  }
+
+  const displayAddress = address ? shortenAddress(address) : "Not connected";
   const band = bandForScore(decision.score);
   const tone = TONE[band.tone];
   const ceilingUsdc = usdcFromKes(band.ceilingKes);
@@ -151,136 +263,38 @@ export function MainScreen({
             </span>
             <span className="hidden h-4 w-px bg-hairline sm:block" />
             <div className="hidden items-center gap-2 sm:flex">
-              <Avatar initials={applicant.initials} active size={32} />
+              <Avatar
+                initials={
+                  `${firstName[0] ?? (hasLiveData ? applicant.initials[0] : "K") ?? "K"}${lastName[0] ?? ""}`.toUpperCase()
+                }
+                active
+                size={32}
+              />
               <div>
                 <div className="text-[11px] text-muted-foreground">
                   {hi}
                 </div>
                 <div className="text-sm font-medium leading-tight">
-                  {applicant.name}
+                  {profile?.name || (hasLiveData ? applicant.name : "") || "Your account"}
                 </div>
               </div>
             </div>
           </div>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setAccountNote(null);
-                setSwitcher((v) => !v);
-              }}
-              className="font-heading flex items-center gap-2 rounded-xl border border-hairline bg-white px-3 py-2"
-            >
-              <Wallet size={14} className="text-mint-deep" />
-              <span className="font-mono text-xs text-muted-foreground">
-                {displayAddress}
-              </span>
-              <span className="hidden text-xs text-[#a9b0a2] sm:inline">
-                Connected
-              </span>
-              <ChevronDown size={14} className="text-[#a9b0a2]" />
-            </button>
-          {switcher ? (
-            <div className="fade-up absolute top-[calc(100%+6px)] right-0 z-10 w-[220px] rounded-[14px] border border-hairline bg-white p-2 shadow-[0_12px_28px_-10px_rgba(20,23,28,0.22)]">
-              <div className="px-1.5 pb-1.5 text-[10px] tracking-wide text-[#a9b0a2] uppercase">
-                Your account
-              </div>
-              {connectors.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    if (hasOpenLoan) {
-                      setAccountNote(
-                        "Pay your loan first. Then you can change wallets."
-                      );
-                      return;
-                    }
-                    connect({ connector: c });
-                    setAccountNote(null);
-                    setSwitcher(false);
-                  }}
-                  className={cn(
-                    "font-heading mb-0.5 flex w-full items-center justify-between rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-mint-deep",
-                    c.name === connector?.name ? "bg-mint" : "bg-transparent"
-                  )}
-                >
-                  <span>{c.name}</span>
-                </button>
-              ))}
-              {onDisconnectWallet ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (hasOpenLoan) {
-                      setAccountNote(
-                        "Pay your loan first. Then you can disconnect this wallet."
-                      );
-                      return;
-                    }
-                    setAccountNote(null);
-                    setSwitcher(false);
-                    onDisconnectWallet();
-                  }}
-                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
-                >
-                  Disconnect wallet
-                </button>
-              ) : null}
-              {onDeleteAccount ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (hasOpenLoan) {
-                      setAccountNote(
-                        "Pay your loan first. Then you can delete this account."
-                      );
-                      return;
-                    }
-                    setAccountNote(null);
-                    setSwitcher(false);
-                    onDeleteAccount();
-                  }}
-                  className="font-heading flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-[#C24545]"
-                >
-                  Delete account
-                </button>
-              ) : null}
-              {onSignOut ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAccountNote(null);
-                    setSwitcher(false);
-                    onSignOut();
-                  }}
-                  className="font-heading mt-1 flex w-full items-center rounded-[10px] px-2 py-2 text-left text-xs font-semibold text-mint-deep"
-                >
-                  Sign out
-                </button>
-              ) : null}
-              {accountNote ? (
-                <p className="mt-1 px-2 py-1 text-[11px] leading-4 text-[#C24545]">
-                  {accountNote}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+          <button
+            type="button"
+            onClick={() => onTab("wallet")}
+            className="inline-flex items-center gap-2 rounded-full bg-mint-deep px-3.5 py-2 text-sm font-medium text-white"
+          >
+            <Wallet size={16} />
+            {isConnected ? displayAddress : "Wallet"}
+          </button>
         </div>
       </header>
 
       <div className="mx-auto flex w-full max-w-6xl gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <aside className="hidden w-52 shrink-0 md:block">
           <nav className="sticky top-24 space-y-1">
-            {(
-              [
-                { id: "portfolio", icon: Wallet, label: "Overview" },
-                { id: "agent", icon: Sparkles, label: "Review" },
-                { id: "report", icon: BadgeCheck, label: "Documents" },
-              ] as const
-            ).map((item) => (
+            {NAV.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -296,32 +310,290 @@ export function MainScreen({
                 {item.label}
               </button>
             ))}
+            {onSignOut ? (
+              <button
+                type="button"
+                onClick={() => onSignOut()}
+                className="font-heading mt-4 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#C24545] hover:bg-white"
+              >
+                <LogOut size={16} />
+                Log out
+              </button>
+            ) : null}
           </nav>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-24 md:pb-4">
-        {tab === "portfolio" ? (
+        <div className="min-w-0 flex-1 pb-32 md:pb-4">
+        {accountNote ? (
+          <p className="mb-4 text-sm text-[#C24545]">{accountNote}</p>
+        ) : null}
+        {notice ? <p className="mb-4 text-sm text-mint-deep">{notice}</p> : null}
+
+        {tab === "wallet" ? (
+          <div className="fade-up mb-8 grid gap-6">
+            <div>
+              <p className="text-sm text-mint-deep md:hidden">{hi}</p>
+              <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
+                Wallet
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                Connect an Avalanche wallet so we can read the money that already
+                moved. That is what your score is based on.
+              </p>
+            </div>
+            <section className="rounded-[1.6rem] border border-hairline bg-white px-6 py-6">
+              {isConnected && address ? (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-sm text-muted-foreground">Connected</h2>
+                    <p className="font-mono mt-2 text-lg">{displayAddress}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {connector?.name ?? "Wallet"} ·{" "}
+                      {onAvalanche ? "Avalanche" : "Wrong network"}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {!onAvalanche ? (
+                      <PrimaryButton
+                        className="sm:w-auto sm:px-6"
+                        onClick={() => switchChain({ chainId: avalanche.id })}
+                      >
+                        {isSwitching ? "Switching…" : "Switch to Avalanche"}
+                      </PrimaryButton>
+                    ) : null}
+                    {onDisconnectWallet ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (hasOpenLoan) {
+                            setAccountNote(
+                              "Pay your loan first. Then you can disconnect this wallet."
+                            );
+                            return;
+                          }
+                          onDisconnectWallet();
+                        }}
+                        className="text-sm font-semibold text-[#C24545]"
+                      >
+                        Disconnect
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {walletChoices.map((item) => {
+                    const pending = Boolean(
+                      isPending &&
+                        variables?.connector &&
+                        "id" in variables.connector &&
+                        item.matches.some(
+                          (match) =>
+                            match.id === activeConnectorId(variables.connector)
+                        )
+                    );
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        disabled={isPending || hasOpenLoan}
+                        onClick={() => {
+                          if (hasOpenLoan) {
+                            setAccountNote(
+                              "Pay your loan first. Then you can change wallets."
+                            );
+                            return;
+                          }
+                          void connectDisplayWallet(
+                            item.label,
+                            item.matches,
+                            connectAsync
+                          ).catch((err) =>
+                            setAccountNote(
+                              err instanceof Error
+                                ? err.message
+                                : "Could not connect that wallet."
+                            )
+                          );
+                        }}
+                        className="font-heading flex items-center justify-center gap-1.5 rounded-xl bg-mint-deep px-3 py-4 text-sm font-semibold text-white disabled:opacity-60"
+                      >
+                        {pending ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Wallet size={13} />
+                        )}
+                        {pending ? "Connecting…" : item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+            <section>
+              <h2 className="text-xl tracking-[-0.04em]">Payments on this wallet</h2>
+              <div className="mt-3 rounded-[1.6rem] border border-hairline bg-white p-5">
+                {!isConnected ? (
+                  <p className="text-sm text-muted-foreground">
+                    Connect MetaMask, Core, or Trust Wallet to see real Avalanche
+                    USDT and USDC payments. We do not show sample money here.
+                  </p>
+                ) : txsLoading ? (
+                  <p className="text-sm text-muted-foreground">
+                    Reading this wallet on Avalanche…
+                  </p>
+                ) : txs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No USDT or USDC payments on Avalanche for this wallet yet.
+                  </p>
+                ) : (
+                  txs.map((t, i) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTx(t)}
+                      className="flex w-full items-center justify-between py-3 text-left hover:bg-[#FAFBF9]"
+                      style={{
+                        borderBottom:
+                          i < txs.length - 1 ? "1px solid #E6EAE3" : "none",
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex h-9 w-9 items-center justify-center rounded-xl"
+                          style={{
+                            background:
+                              t.direction === "in" ? "#DDF3D6" : "#FBE4E4",
+                          }}
+                        >
+                          {t.direction === "in" ? (
+                            <ArrowDownRight size={16} color="#3FA65C" />
+                          ) : (
+                            <ArrowUpRight size={16} color="#C24545" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">
+                            {t.direction === "in" ? "Money in" : "Money out"}
+                          </div>
+                          <div className="font-mono text-xs text-[#a9b0a2]">
+                            {formatDayMonth(t.timestamp)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div
+                          className="font-heading text-sm font-bold sm:text-base"
+                          style={{
+                            color: t.direction === "in" ? "#3FA65C" : "#C24545",
+                          }}
+                        >
+                          {t.direction === "in" ? "+" : "−"}
+                          {t.amount.toLocaleString("en-KE", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          {t.asset}
+                        </div>
+                        <div className="text-xs text-[#a9b0a2]">
+                          {formatKesOfUsdc(t.amount)}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {tab === "home" ? (
           <div className="fade-up grid gap-6">
             <div>
-              <div className="relative mb-6 overflow-hidden rounded-[1.6rem]">
-                <img
-                  src="/images/hero.jpg"
-                  alt="Shop till with cash and a phone"
-                  className="ken-burns h-28 w-full object-cover sm:h-44"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/55 to-transparent" />
-                <p className="absolute bottom-4 left-5 font-serif text-xl italic text-white">
-                  Your payments are the proof.
-                </p>
-              </div>
-              <p className="text-sm text-[#2f8f52] md:hidden">{hi}</p>
+              <p className="text-sm text-mint-deep md:hidden">{hi}</p>
               <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
                 {hi}
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                {applicant.name} · {financial.totalTransactions.toLocaleString("en-KE")} payments we can see.
+                Watch how it works, then connect a real wallet. Sample clips are
+                marked Sample. Your money only appears under Wallet.
               </p>
             </div>
+            <ol className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  "Open Wallet and connect MetaMask, Core, or Trust on Avalanche.",
+                  "Approve in the app so we know the wallet is yours.",
+                  "We read USDT and USDC that actually moved on the chain.",
+                  "If that checks out, a lender can fund you.",
+                ] as const
+              ).map((step, i) => (
+                <li
+                  key={step}
+                  className="rounded-[1.4rem] border border-hairline bg-white px-4 py-4 text-sm leading-6 text-muted-foreground"
+                >
+                  <span className="font-mono text-[10px] tracking-[0.14em] text-mint-deep">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <p className="mt-2 text-foreground">{step}</p>
+                </li>
+              ))}
+            </ol>
+            <PrimaryButton className="sm:w-auto sm:px-8" onClick={() => onTab("wallet")}>
+              {isConnected ? "Open Wallet" : "Connect a wallet"}
+            </PrimaryButton>
+            <div>
+              <h2 className="text-xl tracking-[-0.04em]">Sample walkthrough</h2>
+              <p className="mt-1 mb-3 text-sm text-muted-foreground">
+                This is a demo video of what payments look like. It is not your
+                account.
+              </p>
+              <SampleDemoVideo />
+            </div>
+            <div>
+              <h2 className="text-xl tracking-[-0.04em]">Set up a wallet</h2>
+              <p className="mt-1 mb-3 text-sm text-muted-foreground">
+                Install MetaMask, then come back to Wallet and tap MetaMask. Core
+                is at core.app. Trust is in the app store.
+              </p>
+              <div className="overflow-hidden rounded-[1.6rem] border border-hairline bg-white">
+                <div className="aspect-video w-full bg-black">
+                  <iframe
+                    title="Getting started with MetaMask"
+                    src="https://www.youtube.com/embed/GNPz-Dv5BjM"
+                    className="h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            </div>
+            {hasLiveData ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(
+                  [
+                    { id: "credit", label: "Credit" },
+                    { id: "review", label: "Review" },
+                    { id: "docs", label: "Documents" },
+                  ] as const
+                ).map((pane) => (
+                  <button
+                    key={pane.id}
+                    type="button"
+                    onClick={() => goHome(pane.id)}
+                    className={cn(
+                      "rounded-full px-3 py-1.5 text-xs font-semibold",
+                      homePane === pane.id
+                        ? "bg-mint-deep text-white"
+                        : "border border-hairline text-muted-foreground"
+                    )}
+                  >
+                    {pane.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          {hasLiveData && homePane === "credit" ? (
           <div className="grid gap-6 lg:grid-cols-5">
             <div className="lg:col-span-2">
             <div className="rounded-[1.6rem] border border-hairline bg-white px-6 py-6 sm:px-7 sm:py-7">
@@ -381,74 +653,23 @@ export function MainScreen({
             </div>
 
             <div className="rounded-[1.6rem] border border-hairline bg-white p-5 sm:p-6 lg:col-span-3">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-lg tracking-[-0.03em]">
-                Latest money moving
-              </span>
-              <span className="text-sm text-[#2f8f52]">
-                Confirmed
-              </span>
-            </div>
-
-            {txs.map((t, i) => (
+              <p className="text-lg tracking-[-0.03em]">Your credit</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Payments for this wallet live under Wallet. This page is the
+                score from money we could confirm on Avalanche.
+              </p>
               <button
-                key={t.id}
                 type="button"
-                onClick={() => setSelectedTx(t)}
-                className="flex w-full items-center justify-between py-3 text-left hover:bg-[#FAFBF9]"
-                style={{
-                  borderBottom:
-                    i < txs.length - 1 ? "1px solid #E6EAE3" : "none",
-                }}
+                onClick={() => onTab("wallet")}
+                className="mt-4 text-sm font-semibold text-mint-deep"
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="flex h-9 w-9 items-center justify-center rounded-xl"
-                    style={{
-                      background: t.direction === "in" ? "#DDF3D6" : "#FBE4E4",
-                    }}
-                  >
-                    {t.direction === "in" ? (
-                      <ArrowDownRight size={16} color="#3FA65C" />
-                    ) : (
-                      <ArrowUpRight size={16} color="#C24545" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">
-                      {t.direction === "in" ? "Money in" : "Money out"}
-                    </div>
-                    <div className="font-mono text-xs text-[#a9b0a2]">
-                      {formatDayMonth(t.timestamp)}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div
-                    className="font-heading text-sm font-bold sm:text-base"
-                    style={{
-                      color: t.direction === "in" ? "#3FA65C" : "#C24545",
-                    }}
-                  >
-                    {t.direction === "in" ? "+" : "−"}
-                    {t.amount.toLocaleString("en-KE", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
-                    {t.asset}
-                  </div>
-                  <div className="text-xs text-[#a9b0a2]">
-                    {formatKesOfUsdc(t.amount)}
-                  </div>
-                </div>
+                Open Wallet
               </button>
-            ))}
             </div>
-          </div>
           </div>
         ) : null}
 
-        {tab === "agent" ? (
+        {hasLiveData && homePane === "review" ? (
           <div className="fade-up grid items-start gap-8 md:grid-cols-2">
             <div className="rounded-3xl border border-hairline bg-white px-6 py-8 text-center">
             <div className="mb-6 text-xl tracking-[-0.03em]">
@@ -554,7 +775,7 @@ export function MainScreen({
                   </div>
                   <button
                     type="button"
-                    onClick={() => onTab("report")}
+                    onClick={() => goHome("docs")}
                     className="flex w-full items-center justify-between rounded-full bg-mint-deep px-4 py-3.5 text-sm font-medium text-white"
                   >
                     View your documents
@@ -582,7 +803,7 @@ export function MainScreen({
           </div>
         ) : null}
 
-        {tab === "report" ? (
+        {hasLiveData && homePane === "docs" ? (
           <div className="fade-up mx-auto max-w-3xl">
             {agentStage !== "done" ? (
               <div className="px-2.5 py-[50px] text-center">
@@ -594,7 +815,7 @@ export function MainScreen({
                   Run a review to unlock a simple document you can download
                   or print.
                 </div>
-                <PrimaryButton onClick={() => onTab("agent")}>
+                <PrimaryButton onClick={() => goHome("review")}>
                   Go to review
                 </PrimaryButton>
               </div>
@@ -722,23 +943,171 @@ export function MainScreen({
           </div>
         ) : null}
         </div>
+        ) : null}
+
+        {tab === "profile" ? (
+          <div className="fade-up max-w-lg">
+            <h1 className="display text-[clamp(1.9rem,4vw,2.8rem)]">Profile</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              How we greet you, and the number we can reach you on.
+            </p>
+            <form
+              className="mt-6 grid gap-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveProfile();
+              }}
+            >
+              <label className="grid gap-1 text-sm">
+                First name
+                <input
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  className="rounded-2xl border border-hairline bg-white px-4 py-3 outline-none"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Last name
+                <input
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  className="rounded-2xl border border-hairline bg-white px-4 py-3 outline-none"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Email
+                <input
+                  value={profile?.email ?? ""}
+                  readOnly
+                  className="rounded-2xl border border-hairline bg-canvas px-4 py-3 text-muted-foreground outline-none"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                Mobile
+                <input
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  className="rounded-2xl border border-hairline bg-white px-4 py-3 outline-none"
+                />
+              </label>
+              <PrimaryButton type="submit" disabled={saving} className="sm:w-auto sm:px-6">
+                {saving ? "Saving…" : "Save"}
+              </PrimaryButton>
+            </form>
+          </div>
+        ) : null}
+
+        {tab === "settings" ? (
+          <div className="fade-up max-w-lg grid gap-8">
+            <div>
+              <h1 className="display text-[clamp(1.9rem,4vw,2.8rem)]">Settings</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Password, authenticator, a sample walkthrough, and leaving the account.
+              </p>
+            </div>
+            <form
+              className="grid gap-4 rounded-[1.5rem] border border-hairline bg-white px-5 py-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void savePassword();
+              }}
+            >
+              <h2 className="text-sm font-semibold">Password</h2>
+              <label className="grid gap-1 text-sm">
+                Current
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  className="rounded-2xl border border-hairline bg-canvas px-4 py-3 outline-none"
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                New
+                <input
+                  type="password"
+                  value={nextPassword}
+                  onChange={(event) => setNextPassword(event.target.value)}
+                  className="rounded-2xl border border-hairline bg-canvas px-4 py-3 outline-none"
+                />
+              </label>
+              <PrimaryButton type="submit" disabled={saving} className="sm:w-auto sm:px-6">
+                {saving ? "Saving…" : "Update password"}
+              </PrimaryButton>
+            </form>
+            <div className="rounded-[1.5rem] border border-hairline bg-white px-5 py-5">
+              <h2 className="text-sm font-semibold">Authenticator</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {profile?.totpEnabled
+                  ? "An authenticator app is on. Scan again if you want the name to show Kredoof : your email."
+                  : "Optional extra lock when you sign in."}
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/onboard?step=totp-setup")}
+                className="mt-3 text-sm font-semibold text-mint-deep"
+              >
+                {profile?.totpEnabled
+                  ? "Update the name in your app"
+                  : "Set up authenticator"}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => onTab("home")}
+              className="text-left text-sm font-semibold text-mint-deep"
+            >
+              Wallet setup videos are on Home
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/how")}
+              className="text-left text-sm font-semibold text-mint-deep"
+            >
+              How Kredoof works
+            </button>
+            <div className="flex flex-col gap-3">
+              {onSignOut ? (
+                <button
+                  type="button"
+                  onClick={() => onSignOut()}
+                  className="text-left text-sm font-semibold text-mint-deep"
+                >
+                  Log out
+                </button>
+              ) : null}
+              {onDeleteAccount ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (hasOpenLoan) {
+                      setAccountNote(
+                        "Pay your loan first. Then you can delete this account."
+                      );
+                      return;
+                    }
+                    onDeleteAccount();
+                  }}
+                  className="text-left text-sm font-semibold text-[#C24545]"
+                >
+                  Delete account
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        </div>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-hairline bg-white/95 px-4 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
         <div className="mx-auto flex max-w-lg items-center justify-around">
-        {(
-          [
-            { id: "portfolio", icon: Wallet, label: "Overview" },
-            { id: "agent", icon: Sparkles, label: "Review" },
-            { id: "report", icon: BadgeCheck, label: "Documents" },
-          ] as const
-        ).map((item) => (
+        {NAV.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => onTab(item.id)}
             className={cn(
-              "flex flex-col items-center gap-1 rounded-xl px-4 py-1.5 text-[11px] font-semibold",
+              "flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-semibold",
               tab === item.id ? "text-foreground" : "text-[#a9b0a2]"
             )}
           >
