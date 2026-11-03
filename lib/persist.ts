@@ -210,6 +210,7 @@ export type PublicAccount = {
   wallet?: string | null;
   role: AccountRole;
   totpEnabled: boolean;
+  emailVerified: boolean;
 };
 
 function toPublicAccount(user: StoredUser): PublicAccount {
@@ -222,6 +223,7 @@ function toPublicAccount(user: StoredUser): PublicAccount {
     wallet: user.wallet,
     role: parseAccountRole(user.role),
     totpEnabled: Boolean(user.totpEnabled),
+    emailVerified: Boolean(user.emailVerified),
   };
 }
 
@@ -238,6 +240,7 @@ function devBorrowerPublic(): PublicAccount {
     wallet: null,
     role: "borrower",
     totpEnabled: false,
+    emailVerified: true,
   };
 }
 
@@ -251,6 +254,7 @@ function devLenderPublic(): PublicAccount {
     wallet: null,
     role: "lender",
     totpEnabled: false,
+    emailVerified: true,
   };
 }
 
@@ -812,15 +816,6 @@ export async function loginUser(
   const user = await getUserByIdentifier(identifierRaw);
   if (!user || !passwordMatches(password, user.passwordHash)) {
     throw new LoginError("credentials", CREDENTIALS_MESSAGE);
-  }
-  if (!user.emailVerified) {
-    if (emailConfirmRequired()) {
-      throw new UnverifiedEmailError(user.email, user.name);
-    }
-    user.emailVerified = true;
-    user.verifyTokenHash = null;
-    user.verifyTokenExpires = null;
-    await saveUser(user, "update").catch(() => null);
   }
   if (!user.passwordHash.startsWith("v2:")) {
     user.passwordHash = hashPassword(password);

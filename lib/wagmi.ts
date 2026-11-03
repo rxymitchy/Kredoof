@@ -20,7 +20,7 @@ export const wagmiConfig = createConfig({
     metaMask({
       dappMetadata: {
         name: "Kredoof",
-        url: "https://kredoof.vercel.app",
+        url: "https://kredoof.com",
       },
     }),
     coreWalletConnector(),
@@ -37,8 +37,8 @@ export const wagmiConfig = createConfig({
             metadata: {
               name: "Kredoof",
               description: "See if your payments can support a loan.",
-              url: "https://kredoof.vercel.app",
-              icons: ["https://kredoof.vercel.app/brand/kredoof-logo.png"],
+              url: "https://kredoof.com",
+              icons: ["https://kredoof.com/brand/kredoof-logo.png"],
             },
           }),
         ]

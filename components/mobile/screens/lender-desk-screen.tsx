@@ -24,6 +24,7 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
+import { EmailVerifyBanner } from "@/components/mobile/email-verify-banner";
 import { LenderDemoVideo } from "@/components/mobile/lender-demo-video";
 import { LenderLoanSection, type DisplayLoan } from "@/components/mobile/loan-list";
 import { TotpSetupPanel } from "@/components/mobile/totp-setup-panel";
@@ -74,6 +75,7 @@ type Profile = {
   firstName: string;
   lastName: string;
   totpEnabled: boolean;
+  emailVerified?: boolean;
 };
 
 const ERC20_TRANSFER = [
@@ -511,6 +513,9 @@ export function LenderDeskScreen() {
                   {hi}
                 </h1>
               </div>
+              {profile?.email && profile.emailVerified !== true ? (
+                <EmailVerifyBanner email={profile.email} />
+              ) : null}
               <ol className="grid gap-3 sm:grid-cols-2">
                 {(
                   [

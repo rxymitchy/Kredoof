@@ -125,7 +125,7 @@ export async function sendRegistrationEmail(input: {
     text: `Hi ${input.name.split(" ")[0] || "there"},\n\nConfirm your Kredoof email:\n${url}\n\nThis link expires in 24 hours.`,
     html: `
       <p>Hi ${first},</p>
-      <p>Confirm your email so you can sign in to Kredoof.</p>
+      <p>You can keep using Kredoof. Confirm this inbox so we know it is yours.</p>
       <p><a href="${url}">Confirm my email</a></p>
       <p>Or paste this into your browser:</p>
       <p style="word-break:break-all">${url}</p>

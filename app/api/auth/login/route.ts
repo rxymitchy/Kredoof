@@ -1,15 +1,19 @@
 import { parseAccountRole } from "@/lib/account-role";
-import { emailConfirmRequired } from "@/lib/email-confirm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
-import {
-  issueEmailConfirmToken,
-  LoginError,
-  loginUser,
-  UnverifiedEmailError,
-} from "@/lib/persist";
+import { issueEmailConfirmToken, LoginError, loginUser } from "@/lib/persist";
 import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import { beginTotpChallenge, establishSession } from "@/lib/session";
+
+async function sendConfirmIfNeeded(request: Request, email: string, name: string) {
+  const issued = await issueEmailConfirmToken(email).catch(() => null);
+  if (!issued) return;
+  await sendRegistrationEmail({
+    to: issued.email,
+    name: issued.name || name,
+    loginUrl: confirmEmailUrl(request, issued.token),
+  }).catch(() => false);
+}
 
 export async function POST(request: Request) {
   const wait = await tooSoon(clientKey(request, "login"), 12, 15 * 60 * 1000);
@@ -38,6 +42,9 @@ export async function POST(request: Request) {
     const data = await loginUser(identifier, body.password);
     if (data.totpEnabled) {
       await beginTotpChallenge(data.email);
+      if (!data.emailVerified) {
+        after(() => sendConfirmIfNeeded(request, data.email, data.name));
+      }
       return NextResponse.json({ totpRequired: true });
     }
     await establishSession({
@@ -47,28 +54,11 @@ export async function POST(request: Request) {
       wallet: data.wallet,
       role: parseAccountRole(data.role),
     });
+    if (!data.emailVerified) {
+      after(() => sendConfirmIfNeeded(request, data.email, data.name));
+    }
     return NextResponse.json({ ...data, totpSuggested: true });
   } catch (error) {
-    if (error instanceof UnverifiedEmailError && emailConfirmRequired()) {
-      const issued = await issueEmailConfirmToken(error.accountEmail).catch(
-        () => null
-      );
-      if (issued) {
-        await sendRegistrationEmail({
-          to: issued.email,
-          name: issued.name,
-          loginUrl: confirmEmailUrl(request, issued.token),
-        }).catch(() => false);
-      }
-      return NextResponse.json(
-        {
-          error:
-            "Confirm your email first. We sent a new link — check inbox and spam.",
-          field: "email",
-        },
-        { status: 401 }
-      );
-    }
     const message =
       error instanceof LoginError
         ? error.message

@@ -55,6 +55,7 @@ import {
   type DisplayLoan,
 } from "@/components/mobile/loan-list";
 import { SampleDemoVideo } from "@/components/mobile/sample-demo-video";
+import { EmailVerifyBanner } from "@/components/mobile/email-verify-banner";
 import { AVALANCHE_CHAIN_ID } from "@/lib/constants";
 import {
   activeConnectorId,
@@ -90,6 +91,7 @@ type Profile = {
   firstName: string;
   lastName: string;
   totpEnabled: boolean;
+  emailVerified?: boolean;
 };
 
 const NAV: { id: MainTab; label: string; icon: typeof Wallet }[] = [
@@ -557,6 +559,9 @@ export function MainScreen({
                 loans live under Loans.
               </p>
             </div>
+            {profile?.email && profile.emailVerified !== true ? (
+              <EmailVerifyBanner email={profile.email} />
+            ) : null}
             <ol className="grid gap-3 sm:grid-cols-2">
               {(
                 [

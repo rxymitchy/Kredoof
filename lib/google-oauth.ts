@@ -15,7 +15,10 @@ export function googleConfigured(): boolean {
   return Boolean(googleClientId() && process.env.GOOGLE_CLIENT_SECRET?.trim());
 }
 
+const LIVE_GOOGLE_CALLBACK = "https://kredoof.com/api/auth/google/callback";
+
 export function googleRedirectUri(request: Request): string {
+  if (process.env.NODE_ENV === "production") return LIVE_GOOGLE_CALLBACK;
   return `${appOrigin(request)}/api/auth/google/callback`;
 }
 

@@ -310,9 +310,7 @@ export function AuthForm({
       switchMode("signin");
       setNotice(
         data.confirmRequired
-          ? data.emailSent
-            ? "Check your inbox (and spam) for a confirmation link. Then sign in."
-            : "Account created. If the confirmation email does not arrive, sign in to get a new link."
+          ? "Account created. Sign in now. You can confirm your email from Home."
           : "Account created. Sign in with your password."
       );
       return;

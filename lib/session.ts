@@ -117,13 +117,20 @@ export function apiOrigin(): string {
   );
 }
 
+const LIVE_ORIGIN = "https://kredoof.com";
+
 /** Public site URL used in confirmation and reset emails. */
 export function appOrigin(request?: Request): string {
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  const hostHeader =
+    request?.headers.get("x-forwarded-host") ?? request?.headers.get("host");
+  const host = hostHeader?.split(",")[0]?.trim().split(":")[0] ?? "";
+  if (/(^|\.)kredoof\.com$/i.test(host)) {
+    const proto = request?.headers.get("x-forwarded-proto") ?? "https";
+    return `${proto}://${host}`;
   }
+  if (process.env.NODE_ENV === "production") return LIVE_ORIGIN;
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (fromEnv && !/vercel\.app/i.test(fromEnv)) return fromEnv;
   if (request) return new URL(request.url).origin;
   return "http://localhost:3000";
 }

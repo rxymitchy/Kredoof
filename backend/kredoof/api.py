@@ -33,14 +33,14 @@ from .scorecard import score_heuristic
 
 app = FastAPI(title="Kredoof Underwriting Engine", version="0.1.0")
 
-# Browser calls from local Next.js and the live Vercel app.
+# Browser calls from local Next.js and the live site.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://kredoof.vercel.app",
-        "https://kredoof-rxymitchys-projects.vercel.app",
+        "https://kredoof.com",
+        "https://www.kredoof.com",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
