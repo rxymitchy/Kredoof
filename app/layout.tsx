@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Outfit, Spectral } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { SessionKeepAlive } from "@/components/session-keep-alive";
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <SessionKeepAlive />
         {children}
+        <Analytics />
       </body>
     </html>
   );

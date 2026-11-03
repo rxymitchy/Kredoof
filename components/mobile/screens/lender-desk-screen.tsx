@@ -510,11 +510,6 @@ export function LenderDeskScreen() {
                 <h1 className="display mt-1 text-[clamp(1.9rem,4vw,2.8rem)]">
                   {hi}
                 </h1>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                  You put in shillings, pick a qualified file, and send USDT.
-                  Sample clips are marked Sample. Wallet, Loans, and Files stay
-                  real.
-                </p>
               </div>
               <ol className="grid gap-3 sm:grid-cols-2">
                 {(
