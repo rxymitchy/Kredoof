@@ -91,7 +91,7 @@ See `.env.example`. For a simple local run you can leave almost everything blank
 | --- | --- |
 | Run on your laptop | Nothing extra, or point `NEXT_PUBLIC_API_URL` at the hosted API |
 | Keep login sessions stable | `SESSION_SECRET` |
-| Send confirmation / reset email | Resend key, from-address, and `NEXT_PUBLIC_APP_URL` |
+| Send confirmation / reset email | Resend key, `EMAIL_FROM` on kredoof.com, and `NEXT_PUBLIC_APP_URL` |
 | Store accounts in a database | `DATABASE_URL` from Neon |
 | WalletConnect QR | WalletConnect / Reown project ID |
 | Continue with Google | `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (keep empty in git) |

@@ -308,7 +308,13 @@ export function AuthForm({
     if (mode === "signup") {
       setEmail(email);
       switchMode("signin");
-      setNotice("Account created. Sign in with your password.");
+      setNotice(
+        data.confirmRequired
+          ? data.emailSent
+            ? "Check your inbox (and spam) for a confirmation link. Then sign in."
+            : "Account created. If the confirmation email does not arrive, sign in to get a new link."
+          : "Account created. Sign in with your password."
+      );
       return;
     }
     if (data.totpRequired) {

@@ -22,7 +22,7 @@ function signupOk(input: {
   lastName: string;
   role: ReturnType<typeof parseAccountRole>;
   emailSent: boolean;
-  confirmToken?: string;
+  confirmRequired: boolean;
 }) {
   return {
     email: input.email,
@@ -32,7 +32,7 @@ function signupOk(input: {
     lastName: input.lastName,
     role: input.role,
     emailSent: input.emailSent,
-    confirmToken: input.confirmToken,
+    confirmRequired: input.confirmRequired,
   };
 }
 
@@ -90,7 +90,8 @@ export async function POST(request: Request) {
       }),
       signal: AbortSignal.timeout(2500),
     }).catch(() => null);
-    if (!emailConfirmRequired()) {
+    const confirmRequired = emailConfirmRequired();
+    if (!confirmRequired) {
       return NextResponse.json(
         signupOk({
           email: data.email,
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
           lastName: data.lastName,
           role: data.role,
           emailSent: false,
+          confirmRequired: false,
         })
       );
     }
@@ -124,7 +126,7 @@ export async function POST(request: Request) {
         lastName: data.lastName,
         role: data.role,
         emailSent,
-        confirmToken: data.verifyToken,
+        confirmRequired: true,
       })
     );
   } catch (error) {
@@ -159,6 +161,7 @@ export async function POST(request: Request) {
           lastName,
           role,
           emailSent,
+          confirmRequired: emailConfirmRequired(),
         })
       );
     }

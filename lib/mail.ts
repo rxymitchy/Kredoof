@@ -1,6 +1,6 @@
 import { appOrigin } from "@/lib/session";
 
-const RESEND_TEST_FROM = "Kredoof <onboarding@resend.dev>";
+const KREDOOF_FROM = "Kredoof <noreply@kredoof.com>";
 
 export function confirmEmailUrl(request: Request, token: string): string {
   return `${appOrigin(request)}/onboard?step=confirm&token=${encodeURIComponent(token)}`;
@@ -27,8 +27,13 @@ function unwrap(raw: string | undefined): string {
 
 function fromAddress(): string {
   const raw = unwrap(process.env.EMAIL_FROM);
-  if (!raw || /vercel\.app/i.test(raw) || /^\[sensitive\]$/i.test(raw)) {
-    return RESEND_TEST_FROM;
+  if (
+    !raw ||
+    /vercel\.app/i.test(raw) ||
+    /^\[sensitive\]$/i.test(raw) ||
+    /onboarding@resend\.dev/i.test(raw)
+  ) {
+    return KREDOOF_FROM;
   }
   return raw;
 }
@@ -95,17 +100,13 @@ async function sendEmail(input: {
     console.error("RESEND_API_KEY is not set; confirmation email was not sent");
     return false;
   }
-  const senders = [fromAddress()];
-  if (senders[0] !== RESEND_TEST_FROM) senders.push(RESEND_TEST_FROM);
-
+  const from = fromAddress();
   let last = { ok: false, status: 0, retryable: false, detail: "" };
-  for (const from of senders) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      last = await sendOnce(key, from, input);
-      if (last.ok) return true;
-      if (!last.retryable) break;
-      await sleep(400 * (attempt + 1));
-    }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    last = await sendOnce(key, from, input);
+    if (last.ok) return true;
+    if (!last.retryable) break;
+    await sleep(400 * (attempt + 1));
   }
   console.error("Resend email failed", last.status, last.detail);
   return false;
