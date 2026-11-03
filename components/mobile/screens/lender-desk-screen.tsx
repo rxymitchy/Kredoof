@@ -793,7 +793,7 @@ export function LenderDeskScreen() {
                 <h2 className="text-sm font-semibold">Authenticator</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {profile?.totpEnabled
-                    ? "An authenticator app is on. Old names in the app cannot be renamed. Turn it off, delete the old entry on your phone, then add it again as Kredoof : your email."
+                    ? "An authenticator app is on. Old names in the app cannot be renamed. Turn it off, delete the old entry on your phone, then add it again as Kredoof and your email."
                     : "Optional extra lock when you sign in."}
                 </p>
                 {profile?.totpEnabled ? (

@@ -71,7 +71,7 @@ export function TotpSetupPanel({
   return (
     <div className="mt-4 grid gap-3">
       <p className="text-sm text-muted-foreground">
-        Add a new entry as {account || "Kredoof : your email"}. Then type the
+        Add a new entry as Kredoof, then {account || "your email"}. Type the
         6-digit code to finish.
       </p>
       {secret ? (

@@ -44,7 +44,7 @@ export function LenderDemoVideo() {
 
   return (
     <section className="overflow-hidden rounded-[1.6rem] border border-hairline bg-black text-white">
-      <div className="relative aspect-video w-full overflow-hidden">
+      <div className="relative aspect-[4/5] w-full overflow-hidden sm:aspect-[4/3] lg:aspect-video">
         <img
           src={
             scene === "fund" || scene === "given"
@@ -58,7 +58,7 @@ export function LenderDemoVideo() {
         <span className="absolute top-3 left-3 z-10 rounded-full bg-[#C24545] px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase">
           Sample
         </span>
-        <div className="absolute inset-x-0 top-10 bottom-12 flex items-center justify-center px-4 sm:px-8">
+        <div className="absolute inset-x-0 top-10 bottom-12 flex items-center justify-center px-3 sm:px-8">
           {scene === "deposit" ? (
             <DemoAppShot tab="Wallet" tabs={TABS} title="Wallet">
               <div className="rounded-2xl border border-hairline bg-white p-3">

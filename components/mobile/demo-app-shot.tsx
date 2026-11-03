@@ -11,7 +11,7 @@ export function DemoAppShot({
   children: ReactNode;
 }) {
   return (
-    <div className="w-full max-w-sm overflow-hidden rounded-[1.4rem] border border-hairline bg-white text-foreground shadow-xl">
+    <div className="w-full max-w-[19.5rem] overflow-hidden rounded-[1.4rem] border border-hairline bg-white text-foreground shadow-xl sm:max-w-sm">
       <div className="px-4 pt-3">
         <p className="text-[10px] font-semibold tracking-[0.14em] text-mint-deep uppercase">
           {tab}

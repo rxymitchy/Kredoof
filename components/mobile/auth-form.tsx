@@ -80,7 +80,7 @@ export function AuthForm({
     if (!data.secret) return;
     setTotpSecret(data.secret);
     setTotpAccount(
-      data.account ?? (data.email ? `Kredoof : ${data.email}` : "")
+      data.account ?? data.email ?? ""
     );
     setTotpQr(typeof data.qrDataUrl === "string" ? data.qrDataUrl : "");
     setTotpAddMode(data.qrDataUrl ? "scan" : "key");
@@ -388,7 +388,7 @@ export function AuthForm({
             : mode === "totp"
               ? "Codes refresh every 30 seconds."
               : mode === "totp-setup"
-                ? "Takes a minute. Keeps someone with your password from walking in. The account should read Kredoof : your email."
+                ? "Takes a minute. Keeps someone with your password from walking in. The app should show Kredoof, then your email."
                 : "We’ll email a reset link if that email or phone has an account."}
         </p>
       )}
@@ -695,7 +695,7 @@ export function AuthForm({
                 In your authenticator app, add a key
               </p>
               <p className="mt-1 text-sm">
-                Account: {totpAccount || "Kredoof : your email"}
+                Account: {totpAccount || "your email"}
               </p>
               <p className="mt-2 break-all font-mono text-sm tracking-wide">
                 {totpSecret}
