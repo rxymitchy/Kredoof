@@ -6,9 +6,7 @@ Kredoof looks at money that already moved in a wallet and turns it into a simple
 
 It is not a bank, a licensed lender, a trading app, or a wallet. The person who funds the loan earns the interest. Kredoof is paid when a file is taken and when money is actually sent.
 
-- App: https://kredoof.vercel.app
-- Scoring API: https://backend-sigma-silk-84.vercel.app
-
+- App: https://kredoof.com/
 Scoring today uses USDC and USDT on one chain (Avalanche). Loans send and repay **USDT**. A lender thinks in KSh; we convert at the listed rate. More chains later, after the file works.
 
 ---
