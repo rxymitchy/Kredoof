@@ -51,6 +51,15 @@ export function formatIsoDate(iso: string): string {
   }).format(new Date(iso));
 }
 
+export function formatPayBy(at?: number | null): string | null {
+  if (!at) return null;
+  return new Intl.DateTimeFormat("en-KE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(at));
+}
+
 export function formatDayMonth(iso: string): string {
   return new Intl.DateTimeFormat("en-KE", {
     day: "2-digit",

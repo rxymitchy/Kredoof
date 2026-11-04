@@ -15,38 +15,32 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PrimaryButton } from "@/components/mobile/ui";
 import { AVALANCHE_CHAIN_ID } from "@/lib/constants";
 import { shortenAddress } from "@/lib/format";
+import {
+  activeConnectorId,
+  connectDisplayWallet,
+  listedWallets,
+} from "@/lib/wallets";
 
 export function ConnectScreen({
   onContinue,
-  onDemo,
   onSignOut,
 }: {
   onContinue: () => void;
-  onDemo: () => void;
   onSignOut?: () => void;
 }) {
   const { address, isConnected, connector } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const connectors = useConnectors();
-  const { connect, isPending, variables } = useConnect();
+  const { connectAsync, isPending, variables } = useConnect();
   const { signMessageAsync, isPending: isSigning } = useSignMessage();
   const [error, setError] = useState<string | null>(null);
   const [signed, setSigned] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const onAvalanche = chainId === AVALANCHE_CHAIN_ID;
 
-  const buttons = useMemo(() => {
-    const seen = new Set<string>();
-    return connectors.filter((item) => {
-      const key = item.id.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [connectors]);
-
-  const names = buttons.map((item) => item.name).join(", ");
+  const buttons = useMemo(() => listedWallets(connectors), [connectors]);
+  const names = buttons.map((item) => item.label).join(", ");
 
   return (
     <PhoneShell>
@@ -55,7 +49,7 @@ export function ConnectScreen({
           Connect your wallet
         </h1>
         <p className="mt-3 mb-8 max-w-xl text-base leading-7 text-muted-foreground">
-          Use MetaMask, Coinbase Wallet, or another wallet — it has to be on
+          Use MetaMask, Core, or Trust Wallet — it has to be on
           Avalanche. That’s the money we can read.
         </p>
 
@@ -94,7 +88,7 @@ export function ConnectScreen({
                 <button
                   type="button"
                   onClick={() => switchChain({ chainId: avalanche.id })}
-                  className="font-heading mt-3 w-full rounded-xl border border-hairline py-3 text-sm font-bold"
+                  className="font-heading mt-3 w-full rounded-xl bg-mint-deep py-3 text-sm font-bold text-white"
                 >
                   {isSwitching ? "Switching…" : "Switch to Avalanche"}
                 </button>
@@ -112,22 +106,37 @@ export function ConnectScreen({
                   isPending &&
                     variables?.connector &&
                     "id" in variables.connector &&
-                    variables.connector.id === item.id
+                    item.matches.some(
+                      (match) =>
+                        match.id === activeConnectorId(variables.connector)
+                    )
                 );
                 return (
                   <button
-                    key={item.id}
+                    key={item.label}
                     type="button"
                     disabled={isPending}
-                    onClick={() => connect({ connector: item })}
-                    className="font-heading flex items-center justify-center gap-1.5 rounded-xl border border-hairline bg-white px-3 py-4 text-sm font-semibold disabled:opacity-60"
+                    onClick={() => {
+                      void connectDisplayWallet(
+                        item.label,
+                        item.matches,
+                        connectAsync
+                      ).catch((err) =>
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : "Could not connect that wallet."
+                        )
+                      );
+                    }}
+                    className="font-heading flex items-center justify-center gap-1.5 rounded-xl bg-mint-deep px-3 py-4 text-sm font-semibold text-white disabled:opacity-60"
                   >
                     {pending ? (
-                      <Loader2 size={13} className="animate-spin text-mint-deep" />
+                      <Loader2 size={13} className="animate-spin" />
                     ) : (
-                      <Wallet size={13} className="text-mint-deep" />
+                      <Wallet size={13} />
                     )}
-                    {pending ? "Connecting…" : item.name}
+                    {pending ? "Connecting…" : item.label}
                   </button>
                 );
               })}
@@ -207,13 +216,6 @@ export function ConnectScreen({
           </div>
         ) : null}
 
-        <button
-          type="button"
-          onClick={onDemo}
-          className="mt-4 block text-sm font-semibold text-mint-deep"
-        >
-          See a sample result first
-        </button>
         {onSignOut ? (
           <button
             type="button"

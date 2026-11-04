@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { LoginError, loginWithGoogle } from "@/lib/persist";
@@ -8,7 +9,7 @@ import {
   googleStateCookieName,
   onboardErrorUrl,
 } from "@/lib/google-oauth";
-import { appOrigin, establishSession } from "@/lib/session";
+import { appOrigin, beginTotpChallenge, establishSession } from "@/lib/session";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -22,7 +23,11 @@ export async function GET(request: Request) {
       onboardErrorUrl(request, "Google sign-in was cancelled.")
     );
   }
-  if (!code || !state || !expected || state !== expected) {
+  const stateOk =
+    Boolean(code && state && expected) &&
+    state.length === expected.length &&
+    timingSafeEqual(Buffer.from(state), Buffer.from(expected));
+  if (!stateOk) {
     return NextResponse.redirect(
       onboardErrorUrl(request, "Google sign-in expired. Try again.")
     );
@@ -30,6 +35,11 @@ export async function GET(request: Request) {
   try {
     const profile = await googleProfileFromCode(code, googleRedirectUri(request));
     const data = await loginWithGoogle(profile);
+    const origin = appOrigin(request);
+    if (data.totpEnabled) {
+      await beginTotpChallenge(data.email);
+      return NextResponse.redirect(`${origin}/onboard?step=totp`);
+    }
     await establishSession({
       email: data.email,
       phone: data.phone,
@@ -39,8 +49,8 @@ export async function GET(request: Request) {
     });
     const next =
       parseAccountRole(data.role) === "lender"
-        ? `${appOrigin(request)}/lend`
-        : `${appOrigin(request)}/onboard?step=connect`;
+        ? `${origin}/lend`
+        : `${origin}/dashboard`;
     return NextResponse.redirect(next);
   } catch (error) {
     const message =

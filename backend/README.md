@@ -2,7 +2,7 @@
 
 This folder is the scoring service. It reads wallet payments (USDC / USDT) and returns a plain credit result the website can show: score, limit, risk in words, and a short report.
 
-It is not the website, and it does not lend money. The live API is https://backend-sigma-silk-84.vercel.app (`app.py` is the Vercel entry).
+It is not the website, and it does not lend money. The website talks to this service in production. `app.py` is the Vercel entry.
 
 Today it scores **one chain** (Avalanche C-Chain). More chains later.
 
@@ -25,7 +25,7 @@ python -m uvicorn kredoof.api:app --host 127.0.0.1 --port 8471
 - http://127.0.0.1:8471 — small demo page for the engine
 - http://127.0.0.1:8471/docs — API docs
 
-The real screens are on the Next.js app. Point the website at this server with `NEXT_PUBLIC_API_URL=http://127.0.0.1:8471`. If the API is down, the site can still show the sample result.
+The real screens are on the Next.js app. Point the website at this server with `NEXT_PUBLIC_API_URL=http://127.0.0.1:8471`. If the API is down, the site does not invent a score.
 
 `python -m kredoof.train` builds a local model in `artifacts/` (not in git). Each machine trains its own copy.
 

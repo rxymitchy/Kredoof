@@ -4,7 +4,11 @@ import {
   hasRepaidLoan,
   getUserByEmail,
 } from "@/lib/persist";
-import { apiOrigin, getSession } from "@/lib/session";
+import { parseAccountRole } from "@/lib/account-role";
+import { apiOrigin, readActiveSession } from "@/lib/session";
+import { usdtFromKes } from "@/lib/format";
+import { bandForScore } from "@/lib/loan-bands";
+import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import {
   LONG_TERM_DAYS,
   SHORT_TERM_DAYS,
@@ -13,22 +17,45 @@ import {
 import { disburseFromTreasury, treasuryErrorMessage } from "@/lib/treasury-disburse";
 
 export async function POST(request: Request) {
+  const wait = await tooSoon(clientKey(request, "draw"), 8, 10 * 60 * 1000);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: "Too many draw attempts. Wait a minute." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds(wait)) } }
+    );
+  }
+  const session = await readActiveSession();
+  if (!session.signedIn || !session.email || !session.wallet) {
+    return NextResponse.json({ error: "Sign in and connect your wallet first" }, { status: 401 });
+  }
+  if (parseAccountRole(session.role) === "lender") {
+    return NextResponse.json(
+      { error: "Lenders fund from the desk, not this draw." },
+      { status: 403 }
+    );
+  }
   const body = (await request.json()) as {
     to?: `0x${string}`;
     amountUsdc?: number;
-    email?: string;
     termDays?: number;
   };
   if (!body.to || !body.amountUsdc || body.amountUsdc <= 0) {
     return NextResponse.json({ error: "Invalid draw request" }, { status: 400 });
   }
-  const session = await getSession();
-  if (session.wallet && session.wallet !== body.to.toLowerCase()) {
+  if (session.wallet !== body.to.toLowerCase()) {
     return NextResponse.json({ error: "Wallet mismatch" }, { status: 403 });
+  }
+  const user = await getUserByEmail(session.email);
+  const ceiling = usdtFromKes(bandForScore(user?.lastScore ?? 0).ceilingKes);
+  if (ceiling <= 0 || body.amountUsdc > ceiling + 0.01) {
+    return NextResponse.json(
+      { error: "That amount is above what your profile allows." },
+      { status: 403 }
+    );
   }
   if (
     await hasOpenLoan({
-      email: session.email ?? body.email,
+      email: session.email,
       wallet: body.to,
     })
   ) {
@@ -40,9 +67,8 @@ export async function POST(request: Request) {
   const termDays =
     body.termDays === LONG_TERM_DAYS ? LONG_TERM_DAYS : SHORT_TERM_DAYS;
   if (termDays === LONG_TERM_DAYS) {
-    const user = session.email ? await getUserByEmail(session.email) : null;
     const repaid = await hasRepaidLoan({
-      email: session.email ?? body.email,
+      email: session.email,
       wallet: body.to,
     });
     if (!allowsLongTerm(user?.lastScore ?? 0, repaid)) {
@@ -60,7 +86,7 @@ export async function POST(request: Request) {
       to: body.to,
       amountUsdc: body.amountUsdc,
       termDays,
-      borrowerEmail: session.email ?? body.email,
+      borrowerEmail: session.email,
     });
     await fetch(`${apiOrigin()}/api/loans`, {
       method: "POST",
@@ -68,7 +94,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         wallet: body.to,
         amount_usdc: body.amountUsdc,
-        email: session.email ?? body.email,
+        email: session.email,
       }),
     })
       .then(async (r) => {

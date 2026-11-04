@@ -34,6 +34,18 @@ yarn-error.log*
 .env*
 !.env.example
 
+# local auth dumps and laptop account files (password hashes, emails)
+login.json
+me.json
+skills-lock.json
+/data/**/*.json
+/data/kredoof-*/
+/data/kredoof-verify/
+
+# private security notes (keep on the laptop, never GitHub)
+*security-briefing*
+Kredoof-security*
+
 # vercel
 .vercel
 

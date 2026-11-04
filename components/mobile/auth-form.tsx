@@ -15,11 +15,19 @@ import {
 } from "@/lib/account-rules";
 import { cn } from "@/lib/utils";
 
-export type AuthMode = "signin" | "signup" | "forgot" | "reset";
+export type AuthMode =
+  | "signin"
+  | "signup"
+  | "forgot"
+  | "reset"
+  | "confirm"
+  | "totp"
+  | "totp-setup";
 
 export function AuthForm({
   initialMode = "signup",
   initialError = null,
+  initialNotice = null,
   resetToken = "",
   initialRole = "borrower",
   onContinue,
@@ -27,6 +35,7 @@ export function AuthForm({
 }: {
   initialMode?: AuthMode;
   initialError?: string | null;
+  initialNotice?: string | null;
   resetToken?: string;
   initialRole?: AccountRole;
   onContinue: (role: AccountRole) => void;
@@ -52,17 +61,72 @@ export function AuthForm({
     string | null
   >(null);
   const [error, setError] = useState<string | null>(initialError);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(initialNotice);
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+  const [totpSecret, setTotpSecret] = useState("");
+  const [totpAccount, setTotpAccount] = useState("");
+  const [totpQr, setTotpQr] = useState("");
+  const [totpAddMode, setTotpAddMode] = useState<"scan" | "key">("scan");
+  const [linkToken, setLinkToken] = useState(resetToken);
+
+  function applyTotpSetup(data: {
+    secret?: string;
+    account?: string;
+    email?: string;
+    qrDataUrl?: string;
+  }) {
+    if (!data.secret) return;
+    setTotpSecret(data.secret);
+    setTotpAccount(
+      data.account ?? data.email ?? ""
+    );
+    setTotpQr(typeof data.qrDataUrl === "string" ? data.qrDataUrl : "");
+    setTotpAddMode(data.qrDataUrl ? "scan" : "key");
+  }
 
   useEffect(() => {
     setAuthMode(initialMode);
   }, [initialMode]);
 
   useEffect(() => {
+    setLinkToken(resetToken);
+  }, [resetToken]);
+
+  useEffect(() => {
     setRole(parseAccountRole(initialRole));
   }, [initialRole]);
+
+  useEffect(() => {
+    if (initialMode !== "totp-setup") return;
+    let cancelled = false;
+    fetch("/api/auth/totp/setup")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.alreadyOn) {
+          setError(
+            data.error ??
+              "Turn off the current authenticator in Settings first."
+          );
+        } else if (data.secret) {
+          applyTotpSetup(data);
+        } else if (data.enroll === false) {
+          switchMode("totp");
+        } else if (data.error) {
+          setError(data.error);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not start two-step sign-in.");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // switchMode is stable enough for this mount path
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMode]);
 
   const firstNameError = touched.firstName
     ? nameHint(firstName, "first name")
@@ -99,6 +163,7 @@ export function AuthForm({
     setTouched({});
     setPassword("");
     setConfirmPassword("");
+    setTotpCode("");
   }
 
   async function submit() {
@@ -115,6 +180,52 @@ export function AuthForm({
     setServerEmailError(null);
     setServerPasswordError(null);
     setServerPhoneError(null);
+    if (mode === "confirm") {
+      if (!linkToken) {
+        setError("This confirmation link is missing. Request a new one by signing in.");
+        return;
+      }
+      setBusy(true);
+      const res = await fetch("/api/auth/confirm", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: linkToken }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) {
+        setError(data.error ?? "Could not confirm that email");
+        return;
+      }
+      if (data.signedIn) {
+        onContinue(parseAccountRole(data.role) || role);
+        return;
+      }
+      switchMode("signin");
+      setNotice("Email confirmed. Sign in with your password.");
+      return;
+    }
+    if (mode === "totp" || mode === "totp-setup") {
+      if (!/^\d{6}$/.test(totpCode.trim())) {
+        setError("Enter the 6-digit code from your authenticator app.");
+        return;
+      }
+      setBusy(true);
+      const res = await fetch("/api/auth/totp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: totpCode.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) {
+        setError(data.error ?? "That code did not match.");
+        return;
+      }
+      onContinue(parseAccountRole(data.role) || role);
+      return;
+    }
     if (mode === "forgot") {
       const invalid = identifierHint(identifier);
       if (invalid) return;
@@ -139,15 +250,16 @@ export function AuthForm({
       const invalid = passwordHint(password);
       if (invalid) return;
       if (confirmPassword !== password) return;
-      if (!resetToken) {
+      if (!linkToken) {
         setError("This reset link is missing. Request a new one.");
         return;
       }
       setBusy(true);
       const res = await fetch("/api/auth/reset", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: resetToken, password }),
+        body: JSON.stringify({ token: linkToken, password }),
       });
       const data = await res.json().catch(() => ({}));
       setBusy(false);
@@ -200,13 +312,33 @@ export function AuthForm({
       return;
     }
     if (mode === "signup") {
-      switchMode("signin");
       setEmail(email);
+      switchMode("signin");
       setNotice(
-        data.emailSent
-          ? "Account created. Check your email for a confirmation link, or sign in with your password."
-          : "Account created. Sign in with your email and password."
+        data.confirmRequired
+          ? "Account created. Sign in now. You can confirm your email from Home."
+          : "Account created. Sign in with your password."
       );
+      return;
+    }
+    if (data.totpRequired) {
+      switchMode("totp");
+      return;
+    }
+    if (data.totpSuggested) {
+      switchMode("totp-setup");
+      const setup = await fetch("/api/auth/totp/setup").then((r) =>
+        r.json().catch(() => ({}))
+      );
+      if (setup.secret) {
+        applyTotpSetup({
+          secret: setup.secret,
+          account: setup.account,
+          email: setup.email ?? email,
+          qrDataUrl: setup.qrDataUrl,
+        });
+      }
+      if (data.role) setRole(parseAccountRole(data.role));
       return;
     }
     onContinue(parseAccountRole(data.role) || role);
@@ -219,7 +351,13 @@ export function AuthForm({
         ? "Send reset link"
         : mode === "reset"
           ? "Save new password"
-          : "Create my account";
+          : mode === "confirm"
+            ? "Confirm my email"
+            : mode === "totp"
+            ? "Confirm code"
+            : mode === "totp-setup"
+              ? "Turn it on"
+              : "Create my account";
 
   return (
     <form
@@ -250,8 +388,14 @@ export function AuthForm({
       ) : (
         <p className="mb-5 text-sm text-muted-foreground">
           {mode === "reset"
-            ? "Use at least 8 characters."
-            : "We’ll email a reset link if that email or phone has an account."}
+            ? "Use at least 10 characters, with letters and a number."
+            : mode === "confirm"
+              ? "This proves the inbox is yours. Mail apps will not use up the link until you tap the button."
+            : mode === "totp"
+              ? "Codes refresh every 30 seconds."
+              : mode === "totp-setup"
+                ? "Takes a minute. Keeps someone with your password from walking in. The app should show Kredoof, then your email."
+                : "We’ll email a reset link if that email or phone has an account."}
         </p>
       )}
       {mode === "signup" ? (
@@ -431,7 +575,10 @@ export function AuthForm({
           ) : null}
         </div>
       ) : null}
-      {mode !== "forgot" ? (
+      {mode !== "forgot" &&
+      mode !== "confirm" &&
+      mode !== "totp" &&
+      mode !== "totp-setup" ? (
         <div className={mode === "signin" ? "mb-2" : "mb-5"}>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">
             {mode === "reset" ? "New password" : "Password"}
@@ -451,8 +598,8 @@ export function AuthForm({
                 setServerPasswordError(null);
               }}
               onBlur={() => mark("password")}
-              placeholder="At least 8 characters"
-              minLength={8}
+              placeholder="At least 10 characters, with a number"
+              minLength={mode === "signin" ? 1 : 10}
               autoComplete={
                 mode === "signin" ? "current-password" : "new-password"
               }
@@ -491,7 +638,7 @@ export function AuthForm({
               onChange={(e) => setConfirmPassword(e.target.value)}
               onBlur={() => mark("confirm")}
               placeholder="Type it again"
-              minLength={8}
+              minLength={10}
               autoComplete="new-password"
               required
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
@@ -500,6 +647,84 @@ export function AuthForm({
           {confirmError ? (
             <p className="mt-1 text-xs text-[#C24545]">{confirmError}</p>
           ) : null}
+        </div>
+      ) : null}
+      {mode === "totp-setup" && totpSecret ? (
+        <div className="mb-5 rounded-[14px] border border-hairline bg-white px-3.5 py-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTotpAddMode("scan")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold",
+                totpAddMode === "scan"
+                  ? "bg-mint-deep text-white"
+                  : "border border-hairline text-muted-foreground"
+              )}
+            >
+              Scan QR
+            </button>
+            <button
+              type="button"
+              onClick={() => setTotpAddMode("key")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold",
+                totpAddMode === "key"
+                  ? "bg-mint-deep text-white"
+                  : "border border-hairline text-muted-foreground"
+              )}
+            >
+              Type the key
+            </button>
+          </div>
+          {totpAddMode === "scan" && totpQr ? (
+            <div className="mt-3 flex flex-col items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={totpQr}
+                alt="Scan this QR with your authenticator app"
+                width={192}
+                height={192}
+                className="h-48 w-48"
+              />
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                Open Google Authenticator or Authy and scan this code.
+              </p>
+            </div>
+          ) : totpAddMode === "scan" ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              QR is not ready. Type the key instead.
+            </p>
+          ) : (
+            <>
+              <p className="mt-3 text-xs font-medium text-muted-foreground">
+                In your authenticator app, add a key
+              </p>
+              <p className="mt-1 text-sm">
+                Account: {totpAccount || "your email"}
+              </p>
+              <p className="mt-2 break-all font-mono text-sm tracking-wide">
+                {totpSecret}
+              </p>
+            </>
+          )}
+        </div>
+      ) : null}
+      {mode === "totp" || (mode === "totp-setup" && totpSecret) ? (
+        <div className="mb-5">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            6-digit code
+          </p>
+          <input
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="000000"
+            maxLength={6}
+            required
+            className="w-full rounded-[14px] border border-hairline bg-white px-3.5 py-3 text-center font-mono text-lg tracking-[0.4em] outline-none"
+          />
         </div>
       ) : null}
       {mode === "signin" ? (
@@ -532,7 +757,16 @@ export function AuthForm({
           </p>
         </>
       ) : null}
-      {mode === "forgot" || mode === "reset" ? (
+      {mode === "totp-setup" ? (
+        <button
+          type="button"
+          onClick={() => onContinue(role)}
+          className="mt-4 block w-full text-center text-sm font-semibold text-mint-deep"
+        >
+          Not now
+        </button>
+      ) : null}
+      {mode === "forgot" || mode === "reset" || mode === "confirm" || mode === "totp" ? (
         <button
           type="button"
           onClick={() => switchMode("signin")}

@@ -54,7 +54,16 @@ async function createTables(): Promise<void> {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'borrower'`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS kes_float DOUBLE PRECISION NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS users_google_live ON users (google_id) WHERE deleted_at IS NULL AND google_id IS NOT NULL`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL,
+      reset_at BIGINT NOT NULL
+    )
+  `;
   await sql`CREATE INDEX IF NOT EXISTS users_verify_hash ON users (verify_token_hash)`;
   await sql`CREATE INDEX IF NOT EXISTS users_reset_hash ON users (reset_token_hash)`;
   await sql`
@@ -96,4 +105,18 @@ async function createTables(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS leads_wallet ON leads (wallet)`;
   await sql`CREATE INDEX IF NOT EXISTS leads_status ON leads (status)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS lender_deposits (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      kes DOUBLE PRECISION NOT NULL,
+      method TEXT NOT NULL,
+      status TEXT NOT NULL,
+      provider_ref TEXT,
+      created_at BIGINT NOT NULL,
+      confirmed_at BIGINT
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS lender_deposits_email ON lender_deposits (email, created_at DESC)`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS lender_deposits_provider ON lender_deposits (provider_ref) WHERE provider_ref IS NOT NULL`;
 }

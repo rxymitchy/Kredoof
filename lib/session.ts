@@ -1,6 +1,9 @@
 import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import { SESSION_TTL_SECONDS } from "@/lib/session-lifetime";
+
+export { SESSION_TTL_SECONDS } from "@/lib/session-lifetime";
 
 export type KredoofSession = {
   nonce?: string;
@@ -11,15 +14,14 @@ export type KredoofSession = {
   signedIn?: boolean;
   lastSeenAt?: number;
   role?: AccountRole;
+  totpPendingEmail?: string;
+  totpPendingSecret?: string;
 };
 
 // iron-session needs 32+ chars. Local fallback is only for npm run dev — set SESSION_SECRET in production.
 const password =
   process.env.SESSION_SECRET?.padEnd(32, "k") ??
   "kredoof-dev-session-secret-key!!";
-
-/** Signed-in cookie lasts 1 hour, refreshed on each authenticated request. */
-export const SESSION_TTL_SECONDS = 60 * 60;
 
 const sessionOptions: SessionOptions = {
   password: password.slice(0, 64).padEnd(32, "x"),
@@ -53,8 +55,30 @@ export async function establishSession(input: {
   session.role = parseAccountRole(input.role);
   session.signedIn = true;
   session.lastSeenAt = Date.now();
+  delete session.totpPendingEmail;
+  delete session.totpPendingSecret;
   await session.save();
   return session;
+}
+
+export async function beginTotpChallenge(email: string) {
+  const session = await getSession();
+  session.signedIn = false;
+  session.email = undefined;
+  session.phone = undefined;
+  session.name = undefined;
+  session.wallet = undefined;
+  session.totpPendingEmail = email;
+  delete session.totpPendingSecret;
+  session.lastSeenAt = Date.now();
+  await session.save();
+  return session;
+}
+
+export async function stashTotpEnrollSecret(secret: string) {
+  const session = await getSession();
+  session.totpPendingSecret = secret;
+  await session.save();
 }
 
 export async function readActiveSession() {
@@ -73,7 +97,7 @@ export async function readActiveSession() {
     session.destroy();
     return empty;
   }
-  session.lastSeenAt = Date.now(); // sliding 1 hour while they keep using the app
+  session.lastSeenAt = Date.now(); // using the app resets the 30-minute inactivity timer
   await session.save();
   return {
     signedIn: true as const,
@@ -93,13 +117,20 @@ export function apiOrigin(): string {
   );
 }
 
+const LIVE_ORIGIN = "https://kredoof.com";
+
 /** Public site URL used in confirmation and reset emails. */
 export function appOrigin(request?: Request): string {
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  const hostHeader =
+    request?.headers.get("x-forwarded-host") ?? request?.headers.get("host");
+  const host = hostHeader?.split(",")[0]?.trim().split(":")[0] ?? "";
+  if (/(^|\.)kredoof\.com$/i.test(host)) {
+    const proto = request?.headers.get("x-forwarded-proto") ?? "https";
+    return `${proto}://${host}`;
   }
+  if (process.env.NODE_ENV === "production") return LIVE_ORIGIN;
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (fromEnv && !/vercel\.app/i.test(fromEnv)) return fromEnv;
   if (request) return new URL(request.url).origin;
   return "http://localhost:3000";
 }

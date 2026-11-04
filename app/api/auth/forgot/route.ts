@@ -2,9 +2,20 @@ import { NextResponse } from "next/server";
 import { sendPasswordResetEmail } from "@/lib/mail";
 import { identifierHint } from "@/lib/account-rules";
 import { requestPasswordReset } from "@/lib/persist";
+import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
 import { appOrigin } from "@/lib/session";
 
 export async function POST(request: Request) {
+  const wait = await tooSoon(clientKey(request, "forgot"), 1, 60 * 60 * 1000);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: "Too many reset emails. Wait a bit." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds(wait)) },
+      }
+    );
+  }
   const body = (await request.json()) as { identifier?: string; email?: string };
   const identifier = body.identifier ?? body.email ?? "";
   const invalid = identifierHint(identifier);
@@ -12,10 +23,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: invalid, field: "email" }, { status: 400 });
   }
   const data = await requestPasswordReset(identifier).catch(() => null);
-  if (!data) {
+  if (!data?.resetToken) {
     return NextResponse.json({ ok: true });
   }
-  const resetUrl = `${appOrigin(request)}/onboard?step=reset&token=${data.resetToken}`;
+  const resetUrl = `${appOrigin(request)}/onboard?step=reset&token=${encodeURIComponent(data.resetToken)}`;
   const emailSent = await sendPasswordResetEmail({
     to: data.email,
     name: data.name,

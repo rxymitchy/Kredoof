@@ -1,10 +1,60 @@
 import { parseAccountRole } from "@/lib/account-role";
+import {
+  displayName,
+  normalizeEmail,
+  normalizePhone,
+} from "@/lib/account-rules";
+import { emailConfirmRequired } from "@/lib/email-confirm";
 import { NextResponse } from "next/server";
-import { sendRegistrationEmail } from "@/lib/mail";
-import { DuplicateAccountError, registerUser } from "@/lib/persist";
-import { apiOrigin, appOrigin } from "@/lib/session";
+import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
+import {
+  DuplicateAccountError,
+  issueEmailConfirmToken,
+  registerUser,
+} from "@/lib/persist";
+import { clientKey, retryAfterSeconds, tooSoon } from "@/lib/rate-limit";
+import { apiOrigin } from "@/lib/session";
+
+function signupOk(input: {
+  email: string;
+  phone: string;
+  firstName: string;
+  lastName: string;
+  role: ReturnType<typeof parseAccountRole>;
+  emailSent: boolean;
+  confirmRequired: boolean;
+}) {
+  return {
+    email: input.email,
+    phone: input.phone,
+    name: displayName(input.firstName, input.lastName),
+    firstName: input.firstName,
+    lastName: input.lastName,
+    role: input.role,
+    emailSent: input.emailSent,
+    confirmRequired: input.confirmRequired,
+  };
+}
+
+async function sendConfirm(request: Request, email: string, name: string, token: string) {
+  return sendRegistrationEmail({
+    to: email,
+    name,
+    loginUrl: confirmEmailUrl(request, token),
+  });
+}
 
 export async function POST(request: Request) {
+  const wait = await tooSoon(clientKey(request, "register"), 8, 30 * 60 * 1000);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: "Too many sign-ups from here. Wait a bit." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds(wait)) },
+      }
+    );
+  }
   const body = (await request.json()) as {
     email?: string;
     phone?: string;
@@ -34,36 +84,77 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         email: data.email,
         phone: data.phone,
-        password,
         name: data.name,
         first_name: data.firstName,
         last_name: data.lastName,
       }),
       signal: AbortSignal.timeout(2500),
     }).catch(() => null);
-    const loginUrl = `${appOrigin(request)}/api/auth/confirm?token=${data.verifyToken}`;
-    const emailSent = await sendRegistrationEmail({
-      to: data.email,
-      name: data.name,
-      loginUrl,
-    }).catch(() => false);
-    return NextResponse.json({
-      email: data.email,
-      phone: data.phone,
-      name: data.name,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      role: data.role,
-      emailSent,
-    });
+    const confirmRequired = emailConfirmRequired();
+    if (!confirmRequired) {
+      return NextResponse.json(
+        signupOk({
+          email: data.email,
+          phone: data.phone,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          role: data.role,
+          emailSent: false,
+          confirmRequired: false,
+        })
+      );
+    }
+    const emailSent = await sendConfirm(
+      request,
+      data.email,
+      data.name,
+      data.verifyToken
+    ).catch(() => false);
+    return NextResponse.json(
+      signupOk({
+        email: data.email,
+        phone: data.phone,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role,
+        emailSent,
+        confirmRequired: true,
+      })
+    );
   } catch (error) {
-    const duplicate = error instanceof DuplicateAccountError;
+    if (error instanceof DuplicateAccountError) {
+      let emailSent = false;
+      if (error.field === "email" && emailConfirmRequired()) {
+        const issued = await issueEmailConfirmToken(email).catch(() => null);
+        if (issued?.token) {
+          emailSent = await sendConfirm(
+            request,
+            issued.email,
+            issued.name,
+            issued.token
+          ).catch(() => false);
+        } else if (issued) {
+          emailSent = true;
+        }
+      }
+      return NextResponse.json(
+        signupOk({
+          email: normalizeEmail(email),
+          phone: normalizePhone(phone),
+          firstName,
+          lastName,
+          role,
+          emailSent,
+          confirmRequired: emailConfirmRequired(),
+        })
+      );
+    }
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Could not create account",
-        field: duplicate ? error.field : undefined,
+        error:
+          error instanceof Error ? error.message : "Could not create account",
       },
-      { status: duplicate ? 409 : 400 }
+      { status: 400 }
     );
   }
 }

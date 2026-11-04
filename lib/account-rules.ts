@@ -35,7 +35,12 @@ export function looksLikeEmail(raw: string): boolean {
 }
 
 export function isValidPassword(password: string): boolean {
-  return password.length >= 8 && password.length <= 128;
+  return (
+    password.length >= 10 &&
+    password.length <= 128 &&
+    /[A-Za-z]/.test(password) &&
+    /\d/.test(password)
+  );
 }
 
 export function isValidName(value: string): boolean {
@@ -69,8 +74,14 @@ export function identifierHint(value: string): string | null {
 
 export function passwordHint(password: string): string | null {
   if (!password) return "Enter a password";
-  if (password.length < 8) {
-    return "Use at least 8 characters";
+  if (password.length < 10) {
+    return "Use at least 10 characters";
+  }
+  if (password.length > 128) {
+    return "Use 128 characters or fewer";
+  }
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return "Use letters and at least one number";
   }
   return null;
 }

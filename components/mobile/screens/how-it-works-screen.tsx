@@ -65,23 +65,7 @@ export function HowItWorksScreen({
         </div>
       </div>
       <main className="mx-auto max-w-4xl px-5 pb-28 pt-8 sm:px-8 sm:pb-24">
-        <div className="max-w-xl space-y-4 text-base leading-7 text-muted-foreground sm:text-lg">
-          <p>Your wallet has a financial history. We help it count.</p>
-          <p>
-            Connect your wallet. Kredoof looks at the money coming in, the money
-            going out, and how you manage it.
-          </p>
-          <p>
-            We use that activity to build your credit profile. If you qualify,
-            lenders can review it and decide whether to fund your loan.
-          </p>
-          <p>
-            Kredoof isn’t a bank. We’re a smarter way to show what your money
-            says about you.
-          </p>
-        </div>
-
-        <ol className="mt-12 grid gap-0 sm:mt-16">
+        <ol className="grid gap-0">
           {STEPS.map((step, i) => (
             <Reveal key={step.n} delay={i * 70}>
               <li className="grid gap-2 border-t border-hairline py-6 sm:grid-cols-[4.5rem_1fr] sm:items-baseline sm:gap-3 sm:py-8">

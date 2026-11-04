@@ -47,11 +47,14 @@ export function LandingScreen() {
       .catch(() => undefined);
   }, []);
 
-  const creditHref = signedIn
-    ? role === "lender"
-      ? "/lend"
-      : "/onboard?step=connect"
-    : "/onboard?step=signup";
+  const localPreview = process.env.NODE_ENV === "development";
+  const creditHref = localPreview
+    ? "/dashboard"
+    : signedIn
+      ? role === "lender"
+        ? "/lend"
+        : "/dashboard"
+      : "/onboard?step=signup";
   const lendHref =
     signedIn && role === "lender" ? "/lend" : "/onboard?step=signup&as=lender";
 
@@ -83,8 +86,8 @@ export function LandingScreen() {
             Get the credit.
           </h1>
           <p className="mt-4 max-w-md text-[15px] leading-6 text-white/80 sm:text-lg lg:mt-7">
-            Your wallet has a financial history. We help it count — then lenders
-            can fund you.
+            Your wallet has a financial history. We analyze it, then lenders can
+            fund you.
           </p>
           <div className="mt-8 hidden gap-3 lg:flex">
             <Link
@@ -211,29 +214,20 @@ export function LandingScreen() {
         </Link>
       </section>
 
-      <footer className="flex flex-col items-center gap-3 px-6 py-12 pb-28 text-center text-sm text-muted-foreground lg:pb-12">
-        <p>Kredoof. Got the proof? Get the credit.</p>
-        {signedIn ? (
-          <button
-            type="button"
-            className="min-h-11 font-medium text-foreground underline-offset-4 hover:underline"
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" }).catch(
-                () => null
-              );
-              setSignedIn(false);
-            }}
-          >
-            Sign out
-          </button>
-        ) : (
+      <footer className="px-6 py-10 pb-28 text-sm text-muted-foreground sm:px-10 lg:px-16 lg:pb-12">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <p>© Kredoof 2026</p>
           <Link
-            href="/onboard?step=signin"
-            className="inline-flex min-h-11 items-center font-medium text-foreground underline-offset-4 hover:underline"
+            href="/how"
+            className="min-h-11 inline-flex items-center justify-center hover:text-foreground"
           >
-            Sign in
+            How it works
           </Link>
-        )}
+          <p className="text-right">Powered by Avalanche</p>
+        </div>
+        <p className="mt-4 text-center text-xs leading-5">
+          Not a bank. Not a licensed lender.
+        </p>
       </footer>
 
       <div className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-2 gap-2 pb-[env(safe-area-inset-bottom)] lg:hidden">

@@ -17,15 +17,25 @@ function OnboardInner() {
         ? "forgot"
         : step === "reset"
           ? "reset"
-          : "signup";
+          : step === "confirm"
+            ? "confirm"
+          : step === "totp"
+            ? "totp"
+            : step === "totp-setup"
+              ? "totp-setup"
+              : "signup";
   const initialError = params.get("error");
   const resetToken = params.get("token") ?? "";
   const initialRole = params.get("as") === "lender" ? "lender" : "borrower";
+  const initialNotice = params.get("confirmed")
+    ? "Email confirmed. Sign in with your password."
+    : null;
   return (
     <KredoofApp
       startAt={startAt}
       initialAuthMode={authMode}
       initialError={initialError}
+      initialNotice={initialNotice}
       resetToken={resetToken}
       initialRole={initialRole}
     />

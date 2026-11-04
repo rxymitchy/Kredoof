@@ -10,6 +10,7 @@ import { FilmStill } from "@/components/marketing/film-still";
 export function AuthScreen({
   initialMode = "signup",
   initialError = null,
+  initialNotice = null,
   resetToken = "",
   initialRole = "borrower",
   onContinue,
@@ -17,6 +18,7 @@ export function AuthScreen({
 }: {
   initialMode?: AuthMode;
   initialError?: string | null;
+  initialNotice?: string | null;
   resetToken?: string;
   initialRole?: AccountRole;
   onContinue: (role: AccountRole) => void;
@@ -30,15 +32,27 @@ export function AuthScreen({
         ? "Reset your password"
         : mode === "reset"
           ? "Choose a new password"
-          : "Create your account";
+          : mode === "confirm"
+            ? "Confirm your email"
+          : mode === "totp"
+            ? "Enter your app code"
+            : mode === "totp-setup"
+              ? "Authenticator"
+              : "Create your account";
   const blurb =
     mode === "signin"
-      ? "Same email or phone as last time. Then we go to the wallet."
+      ? "Same email or phone as last time."
       : mode === "forgot"
         ? "We’ll email a reset link if that email or phone has an account."
         : mode === "reset"
-          ? "Use at least 8 characters."
-          : "Tell us who you are. We look at the money that already moved — not a stack of statements.";
+          ? "Use at least 10 characters, with letters and a number."
+          : mode === "confirm"
+            ? "Tap the button to confirm this inbox. Then sign in."
+          : mode === "totp"
+            ? "Open Google Authenticator or Authy and type the 6-digit code."
+            : mode === "totp-setup"
+              ? ""
+              : "Tell us who you are. We look at the money that already moved — not a stack of statements.";
 
   return (
     <div className="grid min-h-dvh bg-canvas lg:grid-cols-2">
@@ -53,10 +67,7 @@ export function AuthScreen({
           href="/"
           className="absolute left-4 top-[max(0.85rem,env(safe-area-inset-top))] z-10 flex min-h-10 items-center gap-2 rounded-full bg-black/45 px-3 py-2 text-white backdrop-blur-md"
         >
-          <BrandMark size={18} />
-          <span className="text-[15px] font-medium tracking-[-0.04em]">
-            Kredoof
-          </span>
+          <BrandMark size={36} />
         </Link>
         <div className="absolute inset-x-0 bottom-0 z-10 p-5 sm:p-10">
           <p className="display text-[1.7rem] text-white sm:text-4xl lg:text-5xl">
@@ -73,15 +84,24 @@ export function AuthScreen({
 
       <main className="flex items-start justify-center px-4 py-7 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-10 sm:py-10 lg:items-center">
         <div className="w-full max-w-md fade-up">
-          <h1 className="display text-[1.85rem] text-pretty sm:text-[2.4rem]">
+          <h1
+            className={
+              blurb
+                ? "display text-[1.85rem] text-pretty sm:text-[2.4rem]"
+                : "display mb-6 text-[1.85rem] text-pretty sm:mb-8 sm:text-[2.4rem]"
+            }
+          >
             {heading}
           </h1>
-          <p className="mt-2 mb-6 text-sm leading-6 text-muted-foreground sm:mb-8">
-            {blurb}
-          </p>
+          {blurb ? (
+            <p className="mt-2 mb-6 text-sm leading-6 text-muted-foreground sm:mb-8">
+              {blurb}
+            </p>
+          ) : null}
           <AuthForm
             initialMode={initialMode}
             initialError={initialError}
+            initialNotice={initialNotice}
             initialRole={initialRole}
             resetToken={resetToken}
             onContinue={onContinue}

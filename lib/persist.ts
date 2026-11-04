@@ -15,6 +15,7 @@ import {
 import type { MarketplaceFile } from "@/lib/marketplace-file";
 import { parseAccountRole, type AccountRole } from "@/lib/account-role";
 import { dbEnabled, ensureSchema, getSql } from "@/lib/db";
+import { emailConfirmRequired } from "@/lib/email-confirm";
 import { isOpenLoanStatus, LEAD_FEE_KES } from "@/lib/loan-terms";
 
 // Accounts, loans, and leads. Postgres when DATABASE_URL is set; otherwise
@@ -39,8 +40,10 @@ export type StoredUser = {
   deletedAt?: number | null;
   role?: AccountRole;
   googleId?: string | null;
-  /** KSh the lender has put in to take files and fund loans. */
+  /** KSh credited only after a real M-Pesa or Avalanche USDT payment. */
   kesFloat?: number;
+  totpSecret?: string | null;
+  totpEnabled?: boolean;
 };
 
 export type StoredLoan = {
@@ -80,14 +83,53 @@ export type StoredLead = {
 const STORE = "kredoof-v2";
 const LOANS_PATH = `${STORE}/loans.json`;
 const LEADS_PATH = `${STORE}/leads.json`;
+const DEPOSITS_PATH = `${STORE}/deposits.json`;
 const VERIFY_PREFIX = `${STORE}/verify/`;
 const RESET_PREFIX = `${STORE}/reset/`;
 
-/** Slow hash so a leaked table is harder to brute-force. Salt is fixed (kredoof-v1). */
-function hashPassword(password: string): string {
-  return pbkdf2Sync(password, "kredoof-v1", 120_000, 32, "sha256").toString(
-    "hex"
-  );
+const PBKDF2_ROUNDS = 120_000;
+
+/** Unique salt per user (v2). Legacy hashes used a fixed app salt. */
+function hashPassword(password: string, salt = randomBytes(16).toString("hex")): string {
+  const digest = pbkdf2Sync(
+    password,
+    salt,
+    PBKDF2_ROUNDS,
+    32,
+    "sha256"
+  ).toString("hex");
+  return `v2:${salt}:${digest}`;
+}
+
+function hashesMatch(left: string, right: string): boolean {
+  const a = Buffer.from(left, "hex");
+  const b = Buffer.from(right, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function passwordMatches(password: string, stored: string): boolean {
+  if (stored.startsWith("v2:")) {
+    const parts = stored.split(":");
+    const salt = parts[1];
+    const digest = parts[2];
+    if (!salt || !digest) return false;
+    const actual = pbkdf2Sync(
+      password,
+      salt,
+      PBKDF2_ROUNDS,
+      32,
+      "sha256"
+    ).toString("hex");
+    return hashesMatch(actual, digest);
+  }
+  const legacy = pbkdf2Sync(
+    password,
+    "kredoof-v1",
+    PBKDF2_ROUNDS,
+    32,
+    "sha256"
+  ).toString("hex");
+  return hashesMatch(legacy, stored);
 }
 
 /** Store hashes of email-confirm / reset tokens, not the raw link. */
@@ -128,17 +170,110 @@ function newToken(hours: number): { token: string; hash: string; expires: number
   };
 }
 
+const CONFIRM_TOKEN_HOURS = 24;
+const RESET_TOKEN_HOURS = 1;
+const CONFIRM_RESEND_WAIT_MS = 10 * 60 * 1000;
+
+function tokenStillLive(expires: number | null | undefined): boolean {
+  return Boolean(expires && expires > Date.now());
+}
+
+function issuedWithin(
+  expires: number | null | undefined,
+  hours: number,
+  windowMs: number
+): boolean {
+  if (!tokenStillLive(expires)) return false;
+  const issued = (expires ?? 0) - hours * 60 * 60 * 1000;
+  return Date.now() - issued < windowMs;
+}
+
 function blobEnabled(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 export class LoginError extends Error {
-  readonly field: "email" | "password" | "phone";
-  constructor(field: "email" | "password" | "phone", message: string) {
+  readonly field: "email" | "password" | "phone" | "credentials";
+  constructor(
+    field: "email" | "password" | "phone" | "credentials",
+    message: string
+  ) {
     super(message);
     this.name = "LoginError";
     this.field = field;
   }
+}
+
+const CREDENTIALS_MESSAGE = "Wrong email, phone, or password.";
+
+export class UnverifiedEmailError extends Error {
+  readonly accountEmail: string;
+  readonly accountName: string;
+  constructor(accountEmail: string, accountName: string) {
+    super(
+      "Confirm your email first. We sent a new link — check inbox and spam."
+    );
+    this.name = "UnverifiedEmailError";
+    this.accountEmail = accountEmail;
+    this.accountName = accountName;
+  }
+}
+
+export type PublicAccount = {
+  email: string;
+  phone: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  wallet?: string | null;
+  role: AccountRole;
+  totpEnabled: boolean;
+  emailVerified: boolean;
+};
+
+function toPublicAccount(user: StoredUser): PublicAccount {
+  return {
+    email: user.email,
+    phone: user.phone,
+    name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    wallet: user.wallet,
+    role: parseAccountRole(user.role),
+    totpEnabled: Boolean(user.totpEnabled),
+    emailVerified: Boolean(user.emailVerified),
+  };
+}
+
+const DEV_LENDER_EMAIL = "lender@localhost";
+const DEV_BORROWER_EMAIL = "borrower@localhost";
+
+function devBorrowerPublic(): PublicAccount {
+  return {
+    email: DEV_BORROWER_EMAIL,
+    phone: "254700000002",
+    name: "Local Borrower",
+    firstName: "Local",
+    lastName: "Borrower",
+    wallet: null,
+    role: "borrower",
+    totpEnabled: false,
+    emailVerified: true,
+  };
+}
+
+function devLenderPublic(): PublicAccount {
+  return {
+    email: DEV_LENDER_EMAIL,
+    phone: "254700000001",
+    name: "Local Lender",
+    firstName: "Local",
+    lastName: "Lender",
+    wallet: null,
+    role: "lender",
+    totpEnabled: false,
+    emailVerified: true,
+  };
 }
 
 export class DuplicateAccountError extends Error {
@@ -177,6 +312,8 @@ function normalizeUser(raw: StoredUser): StoredUser {
     role: parseAccountRole(raw.role),
     googleId: raw.googleId ?? null,
     kesFloat: Number(raw.kesFloat) > 0 ? Number(raw.kesFloat) : 0,
+    totpSecret: raw.totpSecret ?? null,
+    totpEnabled: Boolean(raw.totpEnabled),
   };
 }
 
@@ -222,6 +359,8 @@ type UserRow = {
   role: string | null;
   google_id: string | null;
   kes_float?: string | number | null;
+  totp_secret?: string | null;
+  totp_enabled?: boolean | null;
 };
 
 function num(value: string | number | null | undefined): number | null {
@@ -250,6 +389,8 @@ function userFromRow(row: UserRow): StoredUser {
     role: parseAccountRole(row.role),
     googleId: row.google_id,
     kesFloat: Number(row.kes_float) || 0,
+    totpSecret: row.totp_secret ?? null,
+    totpEnabled: Boolean(row.totp_enabled),
   });
 }
 
@@ -362,7 +503,8 @@ async function insertUserRow(user: StoredUser): Promise<void> {
     INSERT INTO users (
       id, email, phone, password_hash, first_name, last_name, name, wallet,
       email_verified, verify_token_hash, verify_token_expires,
-      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id, kes_float
+      reset_token_hash, reset_token_expires, created_at,       last_score, deleted_at, role, google_id, kes_float,
+      totp_secret, totp_enabled
     ) VALUES (
       ${user.id}, ${user.email}, ${user.phone}, ${user.passwordHash},
       ${user.firstName}, ${user.lastName}, ${user.name}, ${user.wallet ?? null},
@@ -370,7 +512,7 @@ async function insertUserRow(user: StoredUser): Promise<void> {
       ${user.verifyTokenExpires ?? null}, ${user.resetTokenHash ?? null},
       ${user.resetTokenExpires ?? null}, ${user.createdAt}, ${user.lastScore ?? null},
       ${user.deletedAt ?? null}, ${parseAccountRole(user.role)}, ${user.googleId ?? null},
-      ${Number(user.kesFloat) || 0}
+      ${Number(user.kesFloat) || 0}, ${user.totpSecret ?? null}, ${Boolean(user.totpEnabled)}
     )
   `;
 }
@@ -395,7 +537,9 @@ async function updateUserRow(user: StoredUser): Promise<void> {
       deleted_at = ${user.deletedAt ?? null},
       role = ${parseAccountRole(user.role)},
       google_id = ${user.googleId ?? null},
-      kes_float = ${Number(user.kesFloat) || 0}
+      kes_float = ${Number(user.kesFloat) || 0},
+      totp_secret = ${user.totpSecret ?? null},
+      totp_enabled = ${Boolean(user.totpEnabled)}
     WHERE id = ${user.id}
   `;
 }
@@ -620,7 +764,7 @@ export async function registerUser(input: {
     lastName,
     name,
     wallet: null,
-    emailVerified: false,
+    emailVerified: !emailConfirmRequired(),
     verifyTokenHash: verify.hash,
     verifyTokenExpires: verify.expires,
     resetTokenHash: null,
@@ -659,47 +803,71 @@ export async function registerUser(input: {
   return { email, phone, name, firstName, lastName, verifyToken: verify.token, role };
 }
 
+/** Confirm link for an unverified account. Reuses a live token so we do not mail a second, invalid link. */
+export async function issueEmailConfirmToken(
+  emailRaw: string
+): Promise<{ token: string | null; email: string; name: string } | null> {
+  const user = await getUserByEmail(emailRaw);
+  if (!user || user.emailVerified) return null;
+  if (
+    user.verifyTokenHash &&
+    issuedWithin(
+      user.verifyTokenExpires,
+      CONFIRM_TOKEN_HOURS,
+      CONFIRM_RESEND_WAIT_MS
+    )
+  ) {
+    return { token: null, email: user.email, name: user.name };
+  }
+  const verify = newToken(CONFIRM_TOKEN_HOURS);
+  user.verifyTokenHash = verify.hash;
+  user.verifyTokenExpires = verify.expires;
+  await saveUser(user, "update");
+  if (!(await usingDb())) {
+    await writeObject(
+      verifyObjectPath(verify.hash),
+      { id: user.id, email: user.email, expires: verify.expires },
+      "update"
+    ).catch(() => null);
+  }
+  return { token: verify.token, email: user.email, name: user.name };
+}
+
 export async function loginUser(
   identifierRaw: string,
   password: string
-): Promise<{
-  email: string;
-  phone: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  wallet?: string | null;
-  role: AccountRole;
-}> {
+): Promise<PublicAccount> {
   const error = validateLogin({ identifier: identifierRaw, password });
   if (error) {
-    throw new LoginError(looksLikeEmail(identifierRaw) ? "email" : "phone", error);
+    throw new LoginError("credentials", error);
   }
   const user = await getUserByIdentifier(identifierRaw);
-  if (!user) {
-    throw new LoginError(
-      looksLikeEmail(identifierRaw) ? "email" : "phone",
-      looksLikeEmail(identifierRaw)
-        ? "No account for that email. Sign up first."
-        : "No account for that phone number. Sign up first."
-    );
+  if (!user || !passwordMatches(password, user.passwordHash)) {
+    throw new LoginError("credentials", CREDENTIALS_MESSAGE);
   }
-  const actual = hashPassword(password);
-  const a = Buffer.from(actual, "hex");
-  const b = Buffer.from(user.passwordHash, "hex");
-  // timingSafeEqual avoids leaking password length via response time.
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    throw new LoginError("password", "Wrong password");
+  if (!user.passwordHash.startsWith("v2:")) {
+    user.passwordHash = hashPassword(password);
+    await saveUser(user, "update").catch(() => null);
   }
-  return {
-    email: user.email,
-    phone: user.phone,
-    name: user.name,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    wallet: user.wallet,
-    role: parseAccountRole(user.role),
-  };
+  return toPublicAccount(user);
+}
+
+export async function enableTotp(email: string, secret: string): Promise<PublicAccount> {
+  const user = await getUserByEmail(email);
+  if (!user) throw new LoginError("credentials", CREDENTIALS_MESSAGE);
+  user.totpSecret = secret;
+  user.totpEnabled = true;
+  await saveUser(user, "update");
+  return toPublicAccount(user);
+}
+
+export async function disableTotp(email: string): Promise<PublicAccount> {
+  const user = await getUserByEmail(email);
+  if (!user) throw new LoginError("credentials", CREDENTIALS_MESSAGE);
+  user.totpSecret = null;
+  user.totpEnabled = false;
+  await saveUser(user, "update");
+  return toPublicAccount(user);
 }
 
 export async function getUserByGoogleId(googleId: string): Promise<StoredUser | null> {
@@ -718,15 +886,7 @@ export async function getUserByGoogleId(googleId: string): Promise<StoredUser | 
 export async function loginWithGoogle(input: {
   googleId: string;
   email: string;
-}): Promise<{
-  email: string;
-  phone: string;
-  name: string;
-  firstName: string;
-  lastName: string;
-  wallet?: string | null;
-  role: AccountRole;
-}> {
+}): Promise<PublicAccount> {
   const googleId = input.googleId.trim();
   const email = normalizeEmail(input.email);
   if (!googleId || !email) {
@@ -754,15 +914,7 @@ export async function loginWithGoogle(input: {
   user.googleId = googleId;
   user.emailVerified = true;
   await saveUser(user, "update");
-  return {
-    email: user.email,
-    phone: user.phone,
-    name: user.name,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    wallet: user.wallet,
-    role: parseAccountRole(user.role),
-  };
+  return toPublicAccount(user);
 }
 
 export async function confirmEmailToken(tokenRaw: string): Promise<{
@@ -771,6 +923,8 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
   name: string;
   firstName: string;
   lastName: string;
+  role: AccountRole;
+  wallet?: string | null;
 }> {
   const token = tokenRaw.trim();
   if (!token) throw new Error("Missing confirmation link");
@@ -814,18 +968,23 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
     name: user.name,
     firstName: user.firstName,
     lastName: user.lastName,
+    role: parseAccountRole(user.role),
+    wallet: user.wallet,
   };
 }
 
 export async function requestPasswordReset(identifierRaw: string): Promise<{
   email: string;
   name: string;
-  resetToken: string;
+  resetToken: string | null;
 } | null> {
   if (identifierHint(identifierRaw)) return null;
   const user = await getUserByIdentifier(identifierRaw);
   if (!user) return null;
-  const reset = newToken(1);
+  if (user.resetTokenHash && tokenStillLive(user.resetTokenExpires)) {
+    return { email: user.email, name: user.name, resetToken: null };
+  }
+  const reset = newToken(RESET_TOKEN_HOURS);
   user.resetTokenHash = reset.hash;
   user.resetTokenExpires = reset.expires;
   await saveUser(user, "update");
@@ -931,6 +1090,37 @@ export async function hasRepaidLoan(input: {
 }): Promise<boolean> {
   const loans = await loansForAccount(input);
   return loans.some((loan) => (loan.status ?? "").toLowerCase() === "repaid");
+}
+
+export type LenderFundedLoan = StoredLoan & {
+  borrowerName?: string;
+};
+
+export async function loansForLender(
+  lenderEmail: string
+): Promise<LenderFundedLoan[]> {
+  const viewer = normalizeEmail(lenderEmail);
+  const leads = await listLeads();
+  const mine = leads.filter(
+    (lead) =>
+      lead.lender === viewer &&
+      (lead.status === "funded" || Boolean(lead.loan_id))
+  );
+  if (mine.length === 0) return [];
+  const loans = await listLoans();
+  const out: LenderFundedLoan[] = [];
+  for (const lead of mine) {
+    const loan = loans.find(
+      (item) => item.id === lead.loan_id || item.lead_id === lead.id
+    );
+    if (!loan) continue;
+    const borrower = lead.email ? await getUserByEmail(lead.email) : null;
+    out.push({
+      ...loan,
+      borrowerName: borrower?.name || undefined,
+    });
+  }
+  return out.sort((a, b) => b.created_at - a.created_at);
 }
 
 export async function setUserLastScore(emailRaw: string, score: number) {
@@ -1199,17 +1389,26 @@ export async function claimLeadExclusive(
 
 export async function getLenderKesFloat(emailRaw: string): Promise<number> {
   const user = await getUserByEmail(emailRaw);
-  if (!user) throw new Error("Account not found");
+  if (!user) {
+    if (
+      process.env.NODE_ENV === "development" &&
+      normalizeEmail(emailRaw) === DEV_LENDER_EMAIL
+    ) {
+      return 0;
+    }
+    throw new Error("Account not found");
+  }
   return Number(user.kesFloat) || 0;
 }
 
+/** Credit KSh that already arrived (payment webhook or a failed spend refund). */
 export async function addLenderKes(
   emailRaw: string,
   kesRaw: number
 ): Promise<number> {
   const kes = Math.round(Number(kesRaw));
-  if (!Number.isFinite(kes) || kes < 100) {
-    throw new Error("Put in at least KSh 100");
+  if (!Number.isFinite(kes) || kes < 1) {
+    throw new Error("Nothing to add");
   }
   if (kes > 20_000_000) {
     throw new Error("That amount is too large for one add");
@@ -1255,7 +1454,7 @@ export async function spendLenderKes(
     if (!rows[0]) {
       const have = await getLenderKesFloat(emailRaw).catch(() => 0);
       throw new Error(
-        `Add money first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
+        `Deposit first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
       );
     }
     return Number(rows[0].kes_float) || 0;
@@ -1265,12 +1464,339 @@ export async function spendLenderKes(
   const have = Number(user.kesFloat) || 0;
   if (have < kes) {
     throw new Error(
-      `Add money first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
+      `Deposit first. You have KSh ${have.toLocaleString("en-KE")}. This needs KSh ${kes.toLocaleString("en-KE")}.`
     );
   }
   user.kesFloat = have - kes;
   await saveUser(user, "update");
   return user.kesFloat;
+}
+
+/** paypal and card are leftover labels on old rows. New deposits are mpesa or avalanche. */
+export type DepositMethod = "mpesa" | "avalanche" | "paypal" | "card";
+export type DepositStatus = "pending" | "confirmed" | "failed";
+
+export type StoredDeposit = {
+  id: string;
+  email: string;
+  kes: number;
+  method: DepositMethod;
+  status: DepositStatus;
+  providerRef?: string | null;
+  createdAt: number;
+  confirmedAt?: number | null;
+};
+
+function depositFromRow(row: Record<string, unknown>): StoredDeposit {
+  const method =
+    row.method === "avalanche" ||
+    row.method === "paypal" ||
+    row.method === "card"
+      ? row.method
+      : "mpesa";
+  const status =
+    row.status === "confirmed" || row.status === "failed" ? row.status : "pending";
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    kes: Number(row.kes) || 0,
+    method,
+    status,
+    providerRef: (row.provider_ref as string | null) ?? null,
+    createdAt: Number(row.created_at),
+    confirmedAt: row.confirmed_at == null ? null : Number(row.confirmed_at),
+  };
+}
+
+function publicDeposit(row: StoredDeposit) {
+  return {
+    id: row.id,
+    kes: row.kes,
+    method: row.method,
+    status: row.status,
+    createdAt: row.createdAt,
+    confirmedAt: row.confirmedAt ?? null,
+  };
+}
+
+export async function createLenderDeposit(input: {
+  email: string;
+  kes: number;
+  method: DepositMethod;
+}): Promise<StoredDeposit> {
+  const kes = Math.round(Number(input.kes));
+  if (!Number.isFinite(kes) || kes < 100) {
+    throw new Error("Deposit at least KSh 100");
+  }
+  if (kes > 20_000_000) {
+    throw new Error("That amount is too large for one deposit");
+  }
+  const deposit: StoredDeposit = {
+    id: newId(),
+    email: normalizeEmail(input.email),
+    kes,
+    method: input.method,
+    status: "pending",
+    providerRef: null,
+    createdAt: Date.now(),
+    confirmedAt: null,
+  };
+  if (await usingDb()) {
+    const sql = getSql();
+    await sql`
+      INSERT INTO lender_deposits (id, email, kes, method, status, provider_ref, created_at, confirmed_at)
+      VALUES (
+        ${deposit.id}, ${deposit.email}, ${deposit.kes}, ${deposit.method},
+        ${deposit.status}, ${deposit.providerRef}, ${deposit.createdAt}, ${deposit.confirmedAt}
+      )
+    `;
+    return deposit;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  rows.unshift(deposit);
+  await writeJson(DEPOSITS_PATH, rows);
+  return deposit;
+}
+
+export async function setDepositProviderRef(
+  id: string,
+  providerRef: string
+): Promise<void> {
+  if (await usingDb()) {
+    const sql = getSql();
+    await sql`
+      UPDATE lender_deposits
+      SET provider_ref = ${providerRef}
+      WHERE id = ${id}
+    `;
+    return;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  const row = rows.find((item) => item.id === id);
+  if (row) {
+    row.providerRef = providerRef;
+    await writeJson(DEPOSITS_PATH, rows);
+  }
+}
+
+export async function getDepositById(id: string): Promise<StoredDeposit | null> {
+  if (!id) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM lender_deposits WHERE id = ${id} LIMIT 1
+    `) as Record<string, unknown>[];
+    return rows[0] ? depositFromRow(rows[0]) : null;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  return rows.find((item) => item.id === id) ?? null;
+}
+
+export async function getDepositByProviderRef(
+  providerRef: string
+): Promise<StoredDeposit | null> {
+  if (!providerRef) return null;
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM lender_deposits WHERE provider_ref = ${providerRef} LIMIT 1
+    `) as Record<string, unknown>[];
+    return rows[0] ? depositFromRow(rows[0]) : null;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  return rows.find((item) => item.providerRef === providerRef) ?? null;
+}
+
+/** Credit once when the payment provider confirms the money arrived. */
+export async function confirmLenderDeposit(input: {
+  id?: string;
+  providerRef?: string;
+}): Promise<StoredDeposit | null> {
+  let deposit = input.id
+    ? await getDepositById(input.id)
+    : input.providerRef
+      ? await getDepositByProviderRef(input.providerRef)
+      : null;
+  if (!deposit) return null;
+  if (deposit.status === "confirmed") return deposit;
+  if (await usingDb()) {
+    const sql = getSql();
+    const now = Date.now();
+    const rows = (await sql`
+      UPDATE lender_deposits
+      SET status = 'confirmed', confirmed_at = ${now},
+          provider_ref = COALESCE(${input.providerRef ?? null}, provider_ref)
+      WHERE id = ${deposit.id} AND status = 'pending'
+      RETURNING *
+    `) as Record<string, unknown>[];
+    if (!rows[0]) return getDepositById(deposit.id);
+    await addLenderKes(deposit.email, deposit.kes);
+    return depositFromRow(rows[0]);
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  const row = rows.find((item) => item.id === deposit.id);
+  if (!row || row.status !== "pending") return row ?? deposit;
+  row.status = "confirmed";
+  row.confirmedAt = Date.now();
+  if (input.providerRef) row.providerRef = input.providerRef;
+  await writeJson(DEPOSITS_PATH, rows);
+  await addLenderKes(deposit.email, deposit.kes);
+  return row;
+}
+
+export async function failLenderDeposit(id: string): Promise<void> {
+  if (await usingDb()) {
+    const sql = getSql();
+    await sql`
+      UPDATE lender_deposits SET status = 'failed'
+      WHERE id = ${id} AND status = 'pending'
+    `;
+    return;
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  const row = rows.find((item) => item.id === id);
+  if (row && row.status === "pending") {
+    row.status = "failed";
+    await writeJson(DEPOSITS_PATH, rows);
+  }
+}
+
+export async function listLenderDeposits(emailRaw: string) {
+  const email = normalizeEmail(emailRaw);
+  if (await usingDb()) {
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT * FROM lender_deposits
+      WHERE email = ${email}
+      ORDER BY created_at DESC
+      LIMIT 20
+    `) as Record<string, unknown>[];
+    return rows.map(depositFromRow).map(publicDeposit);
+  }
+  const rows = await readJson<StoredDeposit[]>(DEPOSITS_PATH, []);
+  return rows
+    .filter((item) => item.email === email)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 20)
+    .map(publicDeposit);
+}
+
+export async function getPublicAccount(
+  emailRaw: string
+): Promise<PublicAccount | null> {
+  const user = await getUserByEmail(emailRaw);
+  if (user) return toPublicAccount(user);
+  if (process.env.NODE_ENV === "development") {
+    const email = normalizeEmail(emailRaw);
+    if (email === DEV_LENDER_EMAIL) return devLenderPublic();
+    if (email === DEV_BORROWER_EMAIL) return devBorrowerPublic();
+  }
+  return null;
+}
+
+export async function updatePublicProfile(
+  emailRaw: string,
+  input: { firstName: string; lastName: string; phone: string }
+): Promise<PublicAccount> {
+  const user = await getUserByEmail(emailRaw);
+  if (!user) throw new Error("Unknown account");
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const phone = normalizePhone(input.phone);
+  if (!firstName || !lastName) throw new Error("Enter your first and last name");
+  if (!phone) throw new Error("Enter a mobile number");
+  const taken = await getUserByPhone(phone);
+  if (taken && taken.id !== user.id) throw new DuplicateAccountError("phone");
+  const previousPhone = user.phone;
+  user.firstName = firstName;
+  user.lastName = lastName;
+  user.name = displayName(firstName, lastName);
+  user.phone = phone;
+  await saveUser(user, "update");
+  if (!(await usingDb()) && previousPhone !== phone) {
+    if (previousPhone) {
+      await writeObject(phoneIndexPath(previousPhone), { id: "" }, "update").catch(
+        () => null
+      );
+    }
+    await writeObject(phoneIndexPath(phone), { id: user.id }, "update").catch(
+      () => null
+    );
+  }
+  return toPublicAccount(user);
+}
+
+/** Local `next dev` only. Lets /dashboard work without a real login. */
+export async function ensureDevBorrower(): Promise<PublicAccount> {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Dev borrower is local only");
+  }
+  const existing = await getUserByEmail(DEV_BORROWER_EMAIL);
+  if (existing) return toPublicAccount(existing);
+  if (await usingDb()) return devBorrowerPublic();
+  const phone = "254700000002";
+  const user: StoredUser = {
+    id: newId(),
+    email: DEV_BORROWER_EMAIL,
+    phone,
+    passwordHash: hashPassword(randomBytes(24).toString("hex")),
+    firstName: "Local",
+    lastName: "Borrower",
+    name: "Local Borrower",
+    wallet: null,
+    emailVerified: true,
+    createdAt: Date.now(),
+    role: "borrower",
+  };
+  await writeObject(emailIndexPath(user.email), { id: user.id }, "update").catch(() => null);
+  await writeObject(phoneIndexPath(phone), { id: user.id }, "update").catch(() => null);
+  await saveUser(user, "update");
+  return toPublicAccount(user);
+}
+
+/** Local `next dev` only. Lets /lend work without a real login. */
+export async function ensureDevLender(): Promise<PublicAccount> {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Dev lender is local only");
+  }
+  const existing = await getUserByEmail(DEV_LENDER_EMAIL);
+  if (existing) return toPublicAccount(existing);
+  // Do not insert a fake row into Neon (local .env often points at production).
+  if (await usingDb()) return devLenderPublic();
+  const phone = "254700000001";
+  const user: StoredUser = {
+    id: newId(),
+    email: DEV_LENDER_EMAIL,
+    phone,
+    passwordHash: hashPassword(randomBytes(24).toString("hex")),
+    firstName: "Local",
+    lastName: "Lender",
+    name: "Local Lender",
+    wallet: null,
+    emailVerified: true,
+    createdAt: Date.now(),
+    role: "lender",
+    kesFloat: 0,
+  };
+  await writeObject(emailIndexPath(user.email), { id: user.id }, "update").catch(() => null);
+  await writeObject(phoneIndexPath(phone), { id: user.id }, "update").catch(() => null);
+  await saveUser(user, "update");
+  return toPublicAccount(user);
+}
+
+export async function changeAccountPassword(
+  emailRaw: string,
+  currentPassword: string,
+  nextPassword: string
+): Promise<void> {
+  const hint = passwordHint(nextPassword);
+  if (hint) throw new Error(hint);
+  const user = await getUserByEmail(emailRaw);
+  if (!user || !passwordMatches(currentPassword, user.passwordHash)) {
+    throw new Error("Current password is wrong");
+  }
+  user.passwordHash = hashPassword(nextPassword);
+  await saveUser(user, "update");
 }
 
 export async function getClaimedLeadForLender(

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Outfit, Spectral } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SessionKeepAlive } from "@/components/session-keep-alive";
 import "./globals.css";
 
 const sans = Outfit({
@@ -26,6 +28,10 @@ export const metadata: Metadata = {
   title: "Kredoof — Got the proof? Get the credit.",
   description:
     "Show the money that already moved in your wallet. Get a simple credit result, or lend to a business that qualified.",
+  icons: {
+    icon: "/brand/kredoof-logo.png",
+    apple: "/brand/kredoof-logo.png",
+  },
 };
 
 export const viewport = {
@@ -42,7 +48,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <SessionKeepAlive />
         {children}
+        <Analytics />
       </body>
     </html>
   );
