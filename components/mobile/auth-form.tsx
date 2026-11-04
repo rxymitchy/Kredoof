@@ -188,6 +188,7 @@ export function AuthForm({
       setBusy(true);
       const res = await fetch("/api/auth/confirm", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: linkToken }),
       });
@@ -195,6 +196,10 @@ export function AuthForm({
       setBusy(false);
       if (!res.ok) {
         setError(data.error ?? "Could not confirm that email");
+        return;
+      }
+      if (data.signedIn) {
+        onContinue(parseAccountRole(data.role) || role);
         return;
       }
       switchMode("signin");
@@ -245,15 +250,16 @@ export function AuthForm({
       const invalid = passwordHint(password);
       if (invalid) return;
       if (confirmPassword !== password) return;
-      if (!resetToken) {
+      if (!linkToken) {
         setError("This reset link is missing. Request a new one.");
         return;
       }
       setBusy(true);
       const res = await fetch("/api/auth/reset", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: resetToken, password }),
+        body: JSON.stringify({ token: linkToken, password }),
       });
       const data = await res.json().catch(() => ({}));
       setBusy(false);

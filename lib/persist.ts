@@ -170,6 +170,24 @@ function newToken(hours: number): { token: string; hash: string; expires: number
   };
 }
 
+const CONFIRM_TOKEN_HOURS = 24;
+const RESET_TOKEN_HOURS = 1;
+const CONFIRM_RESEND_WAIT_MS = 10 * 60 * 1000;
+
+function tokenStillLive(expires: number | null | undefined): boolean {
+  return Boolean(expires && expires > Date.now());
+}
+
+function issuedWithin(
+  expires: number | null | undefined,
+  hours: number,
+  windowMs: number
+): boolean {
+  if (!tokenStillLive(expires)) return false;
+  const issued = (expires ?? 0) - hours * 60 * 60 * 1000;
+  return Date.now() - issued < windowMs;
+}
+
 function blobEnabled(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
@@ -785,13 +803,23 @@ export async function registerUser(input: {
   return { email, phone, name, firstName, lastName, verifyToken: verify.token, role };
 }
 
-/** New 24-hour confirm link for an account that has not confirmed yet. */
+/** Confirm link for an unverified account. Reuses a live token so we do not mail a second, invalid link. */
 export async function issueEmailConfirmToken(
   emailRaw: string
-): Promise<{ token: string; email: string; name: string } | null> {
+): Promise<{ token: string | null; email: string; name: string } | null> {
   const user = await getUserByEmail(emailRaw);
   if (!user || user.emailVerified) return null;
-  const verify = newToken(24);
+  if (
+    user.verifyTokenHash &&
+    issuedWithin(
+      user.verifyTokenExpires,
+      CONFIRM_TOKEN_HOURS,
+      CONFIRM_RESEND_WAIT_MS
+    )
+  ) {
+    return { token: null, email: user.email, name: user.name };
+  }
+  const verify = newToken(CONFIRM_TOKEN_HOURS);
   user.verifyTokenHash = verify.hash;
   user.verifyTokenExpires = verify.expires;
   await saveUser(user, "update");
@@ -895,6 +923,8 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
   name: string;
   firstName: string;
   lastName: string;
+  role: AccountRole;
+  wallet?: string | null;
 }> {
   const token = tokenRaw.trim();
   if (!token) throw new Error("Missing confirmation link");
@@ -938,18 +968,23 @@ export async function confirmEmailToken(tokenRaw: string): Promise<{
     name: user.name,
     firstName: user.firstName,
     lastName: user.lastName,
+    role: parseAccountRole(user.role),
+    wallet: user.wallet,
   };
 }
 
 export async function requestPasswordReset(identifierRaw: string): Promise<{
   email: string;
   name: string;
-  resetToken: string;
+  resetToken: string | null;
 } | null> {
   if (identifierHint(identifierRaw)) return null;
   const user = await getUserByIdentifier(identifierRaw);
   if (!user) return null;
-  const reset = newToken(1);
+  if (user.resetTokenHash && tokenStillLive(user.resetTokenExpires)) {
+    return { email: user.email, name: user.name, resetToken: null };
+  }
+  const reset = newToken(RESET_TOKEN_HOURS);
   user.resetTokenHash = reset.hash;
   user.resetTokenExpires = reset.expires;
   await saveUser(user, "update");

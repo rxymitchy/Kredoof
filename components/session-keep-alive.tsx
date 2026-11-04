@@ -16,7 +16,7 @@ function onAppPage() {
   );
 }
 
-/** Extends the cookie while they use the app. After 15 minutes idle, sign out and go Home. */
+/** Extends the cookie while they use the app. After 30 minutes idle, sign out and go Home. */
 export function SessionKeepAlive() {
   useEffect(() => {
     let lastPing = 0;
@@ -51,12 +51,14 @@ export function SessionKeepAlive() {
 
     const ping = () => {
       if (ended) return;
+      if (document.visibilityState === "visible") {
+        lastActivity = Date.now();
+      }
       if (Date.now() - lastActivity >= IDLE_MS) {
         checkIdle();
         return;
       }
       if (document.visibilityState === "hidden") return;
-      lastActivity = Date.now();
       const now = Date.now();
       if (now - lastPing < PING_GAP_MS) return;
       lastPing = now;
@@ -89,10 +91,15 @@ export function SessionKeepAlive() {
     );
     document.addEventListener("visibilitychange", onVisible);
     const timer = window.setInterval(checkIdle, IDLE_CHECK_MS);
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState === "visible") ping();
+    }, PING_GAP_MS);
+    ping();
     return () => {
       events.forEach((event) => window.removeEventListener(event, ping));
       document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
+      window.clearInterval(heartbeat);
     };
   }, []);
   return null;

@@ -97,7 +97,7 @@ export async function readActiveSession() {
     session.destroy();
     return empty;
   }
-  session.lastSeenAt = Date.now(); // using the app resets the 15-minute inactivity timer
+  session.lastSeenAt = Date.now(); // using the app resets the 30-minute inactivity timer
   await session.save();
   return {
     signedIn: true as const,

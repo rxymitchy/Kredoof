@@ -23,6 +23,10 @@ export function EmailVerifyBanner({ email }: { email: string }) {
       setNote(data.error ?? "Could not send that email.");
       return;
     }
+    if (data.alreadySent) {
+      setNote("We already sent a link. Check inbox and spam.");
+      return;
+    }
     setNote("New link sent. Check inbox and spam.");
   }
 

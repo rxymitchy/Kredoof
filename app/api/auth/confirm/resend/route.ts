@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   if (!session.signedIn || !session.email) {
     return NextResponse.json({ error: "Sign in first" }, { status: 401 });
   }
-  const wait = await tooSoon(clientKey(request, "confirm-resend"), 6, 30 * 60 * 1000);
+  const wait = await tooSoon(clientKey(request, "confirm-resend"), 1, 30 * 60 * 1000);
   if (wait > 0) {
     return NextResponse.json(
       { error: "Wait a few minutes before asking for another link." },
@@ -29,6 +29,9 @@ export async function POST(request: Request) {
   const issued = await issueEmailConfirmToken(user.email);
   if (!issued) {
     return NextResponse.json({ ok: true, alreadyVerified: true });
+  }
+  if (!issued.token) {
+    return NextResponse.json({ ok: true, alreadySent: true });
   }
   const emailSent = await sendRegistrationEmail({
     to: issued.email,

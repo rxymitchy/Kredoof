@@ -51,7 +51,7 @@ export function AuthScreen({
           : mode === "totp"
             ? "Open Google Authenticator or Authy and type the 6-digit code."
             : mode === "totp-setup"
-              ? "The app should show Kredoof, then your email."
+              ? ""
               : "Tell us who you are. We look at the money that already moved — not a stack of statements.";
 
   return (
@@ -84,12 +84,20 @@ export function AuthScreen({
 
       <main className="flex items-start justify-center px-4 py-7 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-10 sm:py-10 lg:items-center">
         <div className="w-full max-w-md fade-up">
-          <h1 className="display text-[1.85rem] text-pretty sm:text-[2.4rem]">
+          <h1
+            className={
+              blurb
+                ? "display text-[1.85rem] text-pretty sm:text-[2.4rem]"
+                : "display mb-6 text-[1.85rem] text-pretty sm:mb-8 sm:text-[2.4rem]"
+            }
+          >
             {heading}
           </h1>
-          <p className="mt-2 mb-6 text-sm leading-6 text-muted-foreground sm:mb-8">
-            {blurb}
-          </p>
+          {blurb ? (
+            <p className="mt-2 mb-6 text-sm leading-6 text-muted-foreground sm:mb-8">
+              {blurb}
+            </p>
+          ) : null}
           <AuthForm
             initialMode={initialMode}
             initialError={initialError}

@@ -5,7 +5,7 @@ import {
   normalizePhone,
 } from "@/lib/account-rules";
 import { emailConfirmRequired } from "@/lib/email-confirm";
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { confirmEmailUrl, sendRegistrationEmail } from "@/lib/mail";
 import {
   DuplicateAccountError,
@@ -110,14 +110,6 @@ export async function POST(request: Request) {
       data.name,
       data.verifyToken
     ).catch(() => false);
-    if (!emailSent) {
-      const token = data.verifyToken;
-      const email = data.email;
-      const name = data.name;
-      after(() =>
-        sendConfirm(request, email, name, token).catch(() => false)
-      );
-    }
     return NextResponse.json(
       signupOk({
         email: data.email,
@@ -134,23 +126,15 @@ export async function POST(request: Request) {
       let emailSent = false;
       if (error.field === "email" && emailConfirmRequired()) {
         const issued = await issueEmailConfirmToken(email).catch(() => null);
-        if (issued) {
+        if (issued?.token) {
           emailSent = await sendConfirm(
             request,
             issued.email,
             issued.name,
             issued.token
           ).catch(() => false);
-          if (!emailSent) {
-            const issuedEmail = issued.email;
-            const issuedName = issued.name;
-            const issuedToken = issued.token;
-            after(() =>
-              sendConfirm(request, issuedEmail, issuedName, issuedToken).catch(
-                () => false
-              )
-            );
-          }
+        } else if (issued) {
+          emailSent = true;
         }
       }
       return NextResponse.json(
