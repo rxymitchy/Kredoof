@@ -2,7 +2,7 @@
 
 This folder is the scoring service. It reads wallet payments (USDC / USDT) and returns a plain credit result the website can show: score, limit, risk in words, and a short report.
 
-It is not the website, and it does not lend money. The live API is https://backend-sigma-silk-84.vercel.app (`app.py` is the Vercel entry).
+It is not the website, and it does not lend money. The website talks to this service in production. `app.py` is the Vercel entry.
 
 Today it scores **one chain** (Avalanche C-Chain). More chains later.
 
