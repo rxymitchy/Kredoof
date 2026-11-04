@@ -2,7 +2,7 @@
 
 **Got the proof? Get the credit.**
 
-Kredoof turns on-chain payment history into a credit file. A business signs up, connects an Avalanche wallet, and gets a plain-language result. A lender can review a qualified file and fund it. The person who funds the loan earns the interest. Kredoof is paid when a file is taken and when money is actually sent.
+Kredoof turns on-chain payment history into a credit file. You signs up, connect an Avalanche wallet, and gets assessed. A lender can review a qualified file and fund it. The person who funds the loan earns the interest. Kredoof is paid when a file is taken and when money is actually sent.
 
 **Live product:** [https://kredoof.com](https://kredoof.com)
 
